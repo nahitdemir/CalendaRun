@@ -57,6 +57,8 @@ public class SettingsDbContext : DbContext
             new SettingDefinition { Key = "notifications.email.subject_template", Description = "Email Subject Template", ValueType = SettingValueType.String, IsRequired = false, CreatedAt = now, UpdatedAt = now },
             new SettingDefinition { Key = "notifications.email.body_template", Description = "Email Body Template", ValueType = SettingValueType.String, IsRequired = false, CreatedAt = now, UpdatedAt = now },
             new SettingDefinition { Key = "notifications.reminder.offsets_minutes", Description = "Reminder offsets in minutes", ValueType = SettingValueType.StringArray, IsRequired = false, CreatedAt = now, UpdatedAt = now },
+            new SettingDefinition { Key = "notifications.dispatcher.max_attempts", Description = "Max retry attempts for notifications", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
+            new SettingDefinition { Key = "notifications.dispatcher.batch_size", Description = "Batch size for notification dispatcher", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
             new SettingDefinition { Key = "planning.default_timezone", Description = "Default Timezone", ValueType = SettingValueType.String, IsRequired = true, CreatedAt = now, UpdatedAt = now },
             new SettingDefinition { Key = "planning.max_plans_per_user", Description = "Max plans per user", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now }
         );
@@ -69,6 +71,8 @@ public class SettingsDbContext : DbContext
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000004"), Key = "notifications.email.subject_template", Environment = "dev", ValueJson = "\"You planned event: {EventId}\"", Version = 1, UpdatedAt = now },
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000005"), Key = "notifications.email.body_template", Environment = "dev", ValueJson = "\"Hello!\\n\\nYou have planned event {EventId}.\\nPlan ID: {PlanItemId}\\n\\nBest regards,\\nCalendaRun Team\"", Version = 1, UpdatedAt = now },
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000006"), Key = "notifications.reminder.offsets_minutes", Environment = "dev", ValueJson = "[1440, 60, 15]", Version = 1, UpdatedAt = now },
+            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000009"), Key = "notifications.dispatcher.max_attempts", Environment = "dev", ValueJson = "3", Version = 1, UpdatedAt = now },
+            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000010"), Key = "notifications.dispatcher.batch_size", Environment = "dev", ValueJson = "50", Version = 1, UpdatedAt = now },
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000007"), Key = "planning.default_timezone", Environment = "dev", ValueJson = "\"Europe/Istanbul\"", Version = 1, UpdatedAt = now },
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000008"), Key = "planning.max_plans_per_user", Environment = "dev", ValueJson = "100", Version = 1, UpdatedAt = now }
         );

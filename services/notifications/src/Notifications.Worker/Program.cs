@@ -4,7 +4,10 @@ using Calendarun.Settings.Client;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Notifications.Infrastructure;
-using Notifications.Worker;
+using Notifications.Infrastructure.Channels;
+using Notifications.Infrastructure.Templates;
+using Notifications.Worker.Consumers;
+using Notifications.Worker.Dispatcher;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -34,14 +37,23 @@ builder.Services.AddSettingsClient(options =>
         "notifications.smtp.port",
         "notifications.smtp.from",
         "notifications.email.subject_template",
-        "notifications.email.body_template"
+        "notifications.email.body_template",
+        "notifications.reminder.offsets_minutes",
+        "notifications.dispatcher.max_attempts",
+        "notifications.dispatcher.batch_size"
     };
 });
 
-// Add EmailService (now using ISettingsClient)
-builder.Services.AddScoped<EmailService>();
+// Add Channel senders
+builder.Services.AddScoped<EmailSender>();
+builder.Services.AddScoped<SmsSender>();
+builder.Services.AddScoped<PushSender>();
+builder.Services.AddScoped<IChannelSenderFactory, ChannelSenderFactory>();
 
-// Add MassTransit
+// Add Template renderer
+builder.Services.AddScoped<ITemplateRenderer, TemplateRenderer>();
+
+// Add MassTransit (Consumer)
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<UserPlannedEventConsumer>();
@@ -55,22 +67,34 @@ builder.Services.AddMassTransit(x =>
             h.Password("guest");
         });
 
-        // Set entity name for message routing
+        // Set entity names for message routing
         cfg.Message<PlanningUserPlannedV1>(m => m.SetEntityName("planning.userplanned.v1"));
         cfg.Message<SettingsChangedV1>(m => m.SetEntityName("settings.changed.v1"));
 
         cfg.ReceiveEndpoint("planning.userplanned.v1", e =>
         {
             e.ConfigureConsumer<UserPlannedEventConsumer>(context);
+            e.UseMessageRetry(r => r.Intervals(
+                TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(15),
+                TimeSpan.FromSeconds(30)));
         });
 
         cfg.ConfigureSettingsChangedEndpoint(context, "notifications-worker");
     });
 });
 
+// Add Dispatcher (Background Worker)
+builder.Services.AddHostedService<NotificationDispatcher>();
+
+// Add Health Checks
+builder.Services.AddHealthChecks()
+    .AddNpgSql(connectionString!, name: "postgres-notifications-db")
+    .AddRabbitMQ("amqp://guest:guest@localhost:5672", name: "rabbitmq");
+
 var host = builder.Build();
 
-// Startup test mail using settings
+// Startup test
 host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStarted.Register(() =>
 {
     _ = Task.Run(async () =>
@@ -81,24 +105,17 @@ host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStarted.
             await Task.Delay(2000);
             
             using var scope = host.Services.CreateScope();
-            var emailService = scope.ServiceProvider.GetRequiredService<EmailService>();
             var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-            var logger = loggerFactory.CreateLogger("BootMail");
+            var logger = loggerFactory.CreateLogger("Boot");
 
-            logger.LogInformation("📧 Sending boot test email...");
-            
-            await emailService.SendEmailAsync(
-                "nahit@local", 
-                "Worker boot test", 
-                "Worker started and SMTP works", 
-                CancellationToken.None);
-
-            logger.LogInformation("✅ Boot test email sent");
+            logger.LogInformation("✅ Notifications.Worker started successfully");
+            logger.LogInformation("📥 Consumer: Listening for planning.userplanned.v1");
+            logger.LogInformation("📮 Dispatcher: Processing due notification jobs");
         }
         catch (Exception ex)
         {
-            var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("BootMail");
-            logger.LogError(ex, "❌ Boot test email failed");
+            var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Boot");
+            logger.LogError(ex, "❌ Boot check failed");
         }
     });
 });
