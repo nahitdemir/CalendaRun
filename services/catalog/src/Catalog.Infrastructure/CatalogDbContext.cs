@@ -24,40 +24,44 @@ public class CatalogDbContext : DbContext
             entity.Property(e => e.RegistrationUrl).HasMaxLength(1000);
         });
 
-        // Seed data
-        var now = DateTimeOffset.UtcNow;
+        // Seed data - events starting soon (for demo/testing)
+        // Using fixed dates for migration stability
+        var seedTime = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        
         modelBuilder.Entity<Event>().HasData(
             new Event
             {
                 Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 Title = "Istanbul Marathon 2025",
-                StartAt = new DateTimeOffset(2025, 11, 2, 8, 0, 0, TimeSpan.FromHours(3)),
+                Description = "44th Istanbul Marathon - intercontinental running experience",
+                StartAt = new DateTimeOffset(2025, 1, 5, 8, 0, 0, TimeSpan.FromHours(3)), // 5 days from seed
                 City = "Istanbul",
                 CountryCode = "TR",
                 RegistrationUrl = "https://istanbulmarathon.org",
-                CreatedAt = now
+                CreatedAt = seedTime
             },
             new Event
             {
                 Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
                 Title = "Cappadocia Ultra Trail",
-                StartAt = new DateTimeOffset(2025, 10, 15, 7, 0, 0, TimeSpan.FromHours(3)),
+                Description = "100km trail run through fairy chimneys",
+                StartAt = new DateTimeOffset(2025, 1, 3, 7, 0, 0, TimeSpan.FromHours(3)), // 3 days from seed
                 City = "Nevşehir",
                 CountryCode = "TR",
                 RegistrationUrl = "https://cappadociaultra.com",
-                CreatedAt = now
+                CreatedAt = seedTime
             },
             new Event
             {
                 Id = Guid.Parse("33333333-3333-3333-3333-333333333333"),
                 Title = "Antalya Half Marathon",
-                StartAt = new DateTimeOffset(2025, 12, 20, 9, 0, 0, TimeSpan.FromHours(3)),
+                Description = "Scenic coastal run along Turkish Riviera",
+                StartAt = new DateTimeOffset(2025, 1, 2, 9, 0, 0, TimeSpan.FromHours(3)), // Tomorrow from seed
                 City = "Antalya",
                 CountryCode = "TR",
                 RegistrationUrl = "https://antalyahalf.com",
-                CreatedAt = now
+                CreatedAt = seedTime
             }
         );
     }
 }
-
