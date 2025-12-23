@@ -24,5 +24,6 @@
     <ProjectReference Include="..\Notifications.Infrastructure\Notifications.Infrastructure.csproj" />
     <ProjectReference Include="..\Notifications.Domain\Notifications.Domain.csproj" />
     <ProjectReference Include="..\..\..\..\building-blocks\Contracts\Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\building-blocks\Settings\Calendarun.Settings.Client\Calendarun.Settings.Client.csproj" />
   </ItemGroup>
 </Project>

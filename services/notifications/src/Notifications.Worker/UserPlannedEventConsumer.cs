@@ -58,16 +58,16 @@ public class UserPlannedEventConsumer : IConsumer<PlanningUserPlannedV1>
         _db.NotificationLogs.Add(log);
         await _db.SaveChangesAsync(context.CancellationToken);
 
-        // Send email
+        // Send templated email using settings
         try
         {
-            var to = message.UserEmail;
-            var subject = "Planned event";
-            var body = $"EventId={message.EventId} PlanItemId={message.PlanItemId}";
+            _logger.LogInformation("✉️ Sending templated email to {To} via SMTP...", message.UserEmail);
 
-            _logger.LogInformation("✉️ Sending email to {To} via SMTP...", to);
-
-            await _emailService.SendEmailAsync(to, subject, body, context.CancellationToken);
+            await _emailService.SendTemplatedEmailAsync(
+                message.UserEmail,
+                message.EventId,
+                message.PlanItemId,
+                context.CancellationToken);
 
             _logger.LogInformation("✅ Email sent OK");
         }
@@ -80,4 +80,3 @@ public class UserPlannedEventConsumer : IConsumer<PlanningUserPlannedV1>
         } // End LogContext
     }
 }
-

@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Calendarun.Contracts.Planning;
+using Calendarun.Contracts.Settings;
+using Calendarun.Settings.Client;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Planning.Api;
@@ -32,6 +34,19 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Add Settings Client
+builder.Services.AddSettingsClient(options =>
+{
+    options.SettingsServiceUrl = builder.Configuration["SettingsService:Url"] ?? "http://localhost:5301";
+    options.RedisConnectionString = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
+    options.Environment = builder.Configuration["Environment"] ?? "dev";
+    options.WarmupKeys = new[]
+    {
+        "planning.default_timezone",
+        "planning.max_plans_per_user"
+    };
+});
+
 // Add DbContext
 var connectionString = builder.Configuration.GetConnectionString("PlanningDb");
 builder.Services.AddDbContext<PlanningDbContext>(options =>
@@ -40,6 +55,8 @@ builder.Services.AddDbContext<PlanningDbContext>(options =>
 // Add MassTransit
 builder.Services.AddMassTransit(x =>
 {
+    x.AddSettingsChangedConsumer("planning-api");
+
     x.UsingRabbitMq((context, cfg) =>
     {
         cfg.Host("localhost", "/", h =>
@@ -50,6 +67,9 @@ builder.Services.AddMassTransit(x =>
 
         // Set entity name for message routing
         cfg.Message<PlanningUserPlannedV1>(m => m.SetEntityName("planning.userplanned.v1"));
+        cfg.Message<SettingsChangedV1>(m => m.SetEntityName("settings.changed.v1"));
+
+        cfg.ConfigureSettingsChangedEndpoint(context, "planning-api");
     });
 });
 
@@ -81,6 +101,7 @@ app.MapHealthChecks("/health");
 app.MapPost("/plan", async (
     CreatePlanRequest request,
     PlanningDbContext db,
+    ISettingsClient settingsClient,
     HttpContext httpContext,
     ILogger<Program> logger,
     CancellationToken ct) =>
@@ -101,6 +122,15 @@ app.MapPost("/plan", async (
         await db.SaveChangesAsync(ct);
     }
 
+    // Check max plans per user (from settings)
+    var maxPlans = await settingsClient.GetAsync<int?>("planning.max_plans_per_user", null, ct) ?? 100;
+    var currentPlanCount = await db.UserPlanItems.CountAsync(p => p.UserId == user.Id && p.State == "Active", ct);
+    
+    if (currentPlanCount >= maxPlans)
+    {
+        return Results.BadRequest(new { error = "Maximum plan limit reached", maxPlans, currentCount = currentPlanCount });
+    }
+
     // Check if already planned
     var existingPlan = await db.UserPlanItems
         .FirstOrDefaultAsync(p => p.UserId == user.Id && p.EventId == request.EventId, ct);
@@ -109,6 +139,9 @@ app.MapPost("/plan", async (
     {
         return Results.Conflict(new { error = "Event already planned", planItemId = existingPlan.Id });
     }
+
+    // Get timezone from settings
+    var timezone = await settingsClient.GetAsync<string>("planning.default_timezone", null, ct) ?? "Europe/Istanbul";
 
     // Create plan item
     var planItem = new UserPlanItem
@@ -132,7 +165,7 @@ app.MapPost("/plan", async (
         user.Email,
         request.EventId,
         planItem.Id,
-        "Europe/Istanbul",
+        timezone, // From settings
         DateTimeOffset.UtcNow
     );
 
@@ -146,8 +179,8 @@ app.MapPost("/plan", async (
 
     db.OutboxMessages.Add(outboxMessage);
     
-    logger.LogInformation("💾 Writing to outbox... UserId={UserId} EventId={EventId} PlanItemId={PlanItemId}",
-        user.Id, request.EventId, planItem.Id);
+    logger.LogInformation("💾 Writing to outbox... UserId={UserId} EventId={EventId} PlanItemId={PlanItemId} Timezone={Timezone}",
+        user.Id, request.EventId, planItem.Id, timezone);
 
     await db.SaveChangesAsync(ct);
     
@@ -161,7 +194,8 @@ app.MapPost("/plan", async (
         userId = user.Id,
         eventId = request.EventId,
         state = planItem.State,
-        createdAt = planItem.CreatedAt
+        createdAt = planItem.CreatedAt,
+        timezone
     });
 })
 .WithName("CreatePlan")

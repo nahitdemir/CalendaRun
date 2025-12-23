@@ -25,6 +25,12 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
+# Start Settings first (other services depend on it)
+[ -d "services/settings/src/Settings.Api" ] && start_bg "Settings.Api" dotnet watch --project services/settings/src/Settings.Api run
+
+# Wait a bit for Settings to start
+sleep 2
+
 [ -d "apps/gateway" ] && start_bg "Gateway" dotnet watch --project apps/gateway run
 [ -d "services/catalog/src/Catalog.Api" ] && start_bg "Catalog.Api" dotnet watch --project services/catalog/src/Catalog.Api run
 [ -d "services/planning/src/Planning.Api" ] && start_bg "Planning.Api" dotnet watch --project services/planning/src/Planning.Api run
@@ -35,9 +41,16 @@ trap cleanup INT TERM EXIT
 
 echo ""
 echo "✅ Dev environment started."
-echo "   Mailhog: http://localhost:8025"
-echo "   RabbitMQ: http://localhost:15672 (guest/guest)"
-echo "   Grafana: http://localhost:3000"
+echo ""
+echo "Services:"
+echo "   Settings API:  http://localhost:5301  (admin settings)"
+echo "   Gateway:       http://localhost:8080"
+echo "   Catalog API:   http://localhost:5101"
+echo "   Planning API:  http://localhost:5201"
+echo ""
+echo "Infrastructure:"
+echo "   Mailhog:       http://localhost:8025"
+echo "   RabbitMQ:      http://localhost:15672 (guest/guest)"
+echo "   Grafana:       http://localhost:3000"
 echo ""
 wait
-

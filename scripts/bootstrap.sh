@@ -77,6 +77,7 @@ apply_migration() {
 apply_migration "services/catalog/src/Catalog.Infrastructure" "services/catalog/src/Catalog.Api"
 apply_migration "services/planning/src/Planning.Infrastructure" "services/planning/src/Planning.Api"
 apply_migration "services/notifications/src/Notifications.Infrastructure" "services/notifications/src/Notifications.Worker"
+apply_migration "services/settings/src/Settings.Infrastructure" "services/settings/src/Settings.Api"
 
 echo "✅ Bootstrap complete."
 echo ""
@@ -87,4 +88,9 @@ echo "Useful UIs:"
 echo "  Mailhog:   http://localhost:8025"
 echo "  RabbitMQ:  http://localhost:15672 (guest/guest)"
 echo "  Grafana:   http://localhost:3000"
-
+echo ""
+echo "Services:"
+echo "  Gateway:           http://localhost:8080"
+echo "  Catalog API:       http://localhost:5101"
+echo "  Planning API:      http://localhost:5201"
+echo "  Settings API:      http://localhost:5301"

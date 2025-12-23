@@ -1,4 +1,6 @@
 using Calendarun.Contracts.Planning;
+using Calendarun.Contracts.Settings;
+using Calendarun.Settings.Client;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Notifications.Infrastructure;
@@ -20,16 +22,30 @@ var connectionString = builder.Configuration.GetConnectionString("NotificationsD
 builder.Services.AddDbContext<NotificationsDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// Add EmailService
-var smtpHost = builder.Configuration["Smtp:Host"] ?? "localhost";
-var smtpPort = int.Parse(builder.Configuration["Smtp:Port"] ?? "1025");
-var smtpFrom = builder.Configuration["Smtp:From"] ?? "noreply@calendarun.local";
-builder.Services.AddSingleton(new EmailService(smtpHost, smtpPort, smtpFrom));
+// Add Settings Client
+builder.Services.AddSettingsClient(options =>
+{
+    options.SettingsServiceUrl = builder.Configuration["SettingsService:Url"] ?? "http://localhost:5301";
+    options.RedisConnectionString = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
+    options.Environment = builder.Configuration["Environment"] ?? "dev";
+    options.WarmupKeys = new[]
+    {
+        "notifications.smtp.host",
+        "notifications.smtp.port",
+        "notifications.smtp.from",
+        "notifications.email.subject_template",
+        "notifications.email.body_template"
+    };
+});
+
+// Add EmailService (now using ISettingsClient)
+builder.Services.AddScoped<EmailService>();
 
 // Add MassTransit
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<UserPlannedEventConsumer>();
+    x.AddSettingsChangedConsumer("notifications-worker");
 
     x.UsingRabbitMq((context, cfg) =>
     {
@@ -41,31 +57,37 @@ builder.Services.AddMassTransit(x =>
 
         // Set entity name for message routing
         cfg.Message<PlanningUserPlannedV1>(m => m.SetEntityName("planning.userplanned.v1"));
+        cfg.Message<SettingsChangedV1>(m => m.SetEntityName("settings.changed.v1"));
 
         cfg.ReceiveEndpoint("planning.userplanned.v1", e =>
         {
             e.ConfigureConsumer<UserPlannedEventConsumer>(context);
         });
+
+        cfg.ConfigureSettingsChangedEndpoint(context, "notifications-worker");
     });
 });
 
 var host = builder.Build();
 
-// Startup test mail
+// Startup test mail using settings
 host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStarted.Register(() =>
 {
     _ = Task.Run(async () =>
     {
         try
         {
+            // Give settings warmup time to complete
+            await Task.Delay(2000);
+            
             using var scope = host.Services.CreateScope();
-            var sender = scope.ServiceProvider.GetRequiredService<EmailService>();
+            var emailService = scope.ServiceProvider.GetRequiredService<EmailService>();
             var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
             var logger = loggerFactory.CreateLogger("BootMail");
 
             logger.LogInformation("📧 Sending boot test email...");
             
-            await sender.SendEmailAsync(
+            await emailService.SendEmailAsync(
                 "nahit@local", 
                 "Worker boot test", 
                 "Worker started and SMTP works", 
