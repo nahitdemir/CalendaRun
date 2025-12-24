@@ -63,6 +63,7 @@ public class NotificationDispatcher : BackgroundService
         // Get settings
         var maxAttempts = await settingsClient.GetAsync<int?>("notifications.dispatcher.max_attempts", null, ct) ?? 3;
         var batchSize = await settingsClient.GetAsync<int?>("notifications.dispatcher.batch_size", null, ct) ?? 50;
+        var retryBackoffBaseSeconds = await settingsClient.GetAsync<int?>("notifications.dispatcher.retry_backoff_base_seconds", null, ct) ?? 10;
 
         // Select due jobs
         var now = DateTimeOffset.UtcNow;
@@ -79,7 +80,7 @@ public class NotificationDispatcher : BackgroundService
 
         foreach (var job in dueJobs)
         {
-            await ProcessJobAsync(db, channelFactory, job, maxAttempts, ct);
+            await ProcessJobAsync(db, channelFactory, job, maxAttempts, retryBackoffBaseSeconds, ct);
         }
 
         await db.SaveChangesAsync(ct);
@@ -90,6 +91,7 @@ public class NotificationDispatcher : BackgroundService
         IChannelSenderFactory channelFactory,
         NotificationJob job,
         int maxAttempts,
+        int retryBackoffBaseSeconds,
         CancellationToken ct)
     {
         try
@@ -142,7 +144,7 @@ public class NotificationDispatcher : BackgroundService
                 else
                 {
                     // Schedule retry with exponential backoff
-                    var backoffSeconds = Math.Pow(2, job.AttemptCount) * 10; // 20s, 40s, 80s, etc.
+                    var backoffSeconds = Math.Pow(2, job.AttemptCount) * retryBackoffBaseSeconds; // 20s, 40s, 80s, etc. (if base=10)
                     job.ScheduledAt = DateTimeOffset.UtcNow.AddSeconds(backoffSeconds);
                     job.Status = NotificationJobStatus.Pending;
 

@@ -1,5 +1,7 @@
+using Calendarun.Settings.Client;
 using Microsoft.EntityFrameworkCore;
 using Platform.Application.Common;
+using Platform.Domain;
 using Platform.Domain.Entities;
 using Platform.Infrastructure.Data;
 using StackExchange.Redis;
@@ -11,11 +13,16 @@ public class ValidateMembershipHandler : IQueryHandler<ValidateMembershipQuery, 
 {
     private readonly PlatformDbContext _db;
     private readonly IConnectionMultiplexer _redis;
+    private readonly ISettingsClient _settingsClient;
 
-    public ValidateMembershipHandler(PlatformDbContext db, IConnectionMultiplexer redis)
+    public ValidateMembershipHandler(
+        PlatformDbContext db,
+        IConnectionMultiplexer redis,
+        ISettingsClient settingsClient)
     {
         _db = db;
         _redis = redis;
+        _settingsClient = settingsClient;
     }
 
     public async Task<MembershipValidationResult> HandleAsync(ValidateMembershipQuery query, CancellationToken ct = default)
@@ -42,8 +49,17 @@ public class ValidateMembershipHandler : IQueryHandler<ValidateMembershipQuery, 
 
         var result = membership ?? new MembershipValidationResult(false, null);
 
-        // Cache for 5 minutes
-        await redisDb.StringSetAsync(cacheKey, JsonSerializer.Serialize(result), TimeSpan.FromMinutes(5));
+        // Get cache TTL from Settings (tenant-specific or global)
+        var tenantIdStr = query.TenantId.ToString();
+        var cacheTtlMinutes = await _settingsClient.GetAsync<int?>(
+            PlatformDefaults.SettingsKeys.MembershipCacheTtlMinutes, tenantIdStr, ct)
+            ?? PlatformDefaults.DefaultMembershipCacheTtlMinutes;
+
+        // Cache with TTL from Settings
+        await redisDb.StringSetAsync(
+            cacheKey,
+            JsonSerializer.Serialize(result),
+            TimeSpan.FromMinutes(cacheTtlMinutes));
 
         return result;
     }

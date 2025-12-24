@@ -59,8 +59,13 @@ public class SettingsDbContext : DbContext
             new SettingDefinition { Key = "notifications.reminder.offsets_minutes", Description = "Reminder offsets in minutes", ValueType = SettingValueType.StringArray, IsRequired = false, CreatedAt = now, UpdatedAt = now },
             new SettingDefinition { Key = "notifications.dispatcher.max_attempts", Description = "Max retry attempts for notifications", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
             new SettingDefinition { Key = "notifications.dispatcher.batch_size", Description = "Batch size for notification dispatcher", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
+            new SettingDefinition { Key = "notifications.dispatcher.retry_backoff_base_seconds", Description = "Base seconds for exponential retry backoff", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
             new SettingDefinition { Key = "planning.default_timezone", Description = "Default Timezone", ValueType = SettingValueType.String, IsRequired = true, CreatedAt = now, UpdatedAt = now },
-            new SettingDefinition { Key = "planning.max_plans_per_user", Description = "Max plans per user", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now }
+            new SettingDefinition { Key = "planning.max_plans_per_user", Description = "Max plans per user", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
+            new SettingDefinition { Key = "platform.invite.expiration_days", Description = "Invite expiration in days", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
+            new SettingDefinition { Key = "platform.membership.cache_ttl_minutes", Description = "Membership validation cache TTL in minutes", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
+            new SettingDefinition { Key = "gateway.http_client.timeout_seconds", Description = "Gateway HTTP client timeout in seconds", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
+            new SettingDefinition { Key = "audit.default_page_size", Description = "Default page size for audit log queries", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now }
         );
 
         // Seed default values for dev environment
@@ -73,8 +78,13 @@ public class SettingsDbContext : DbContext
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000006"), Key = "notifications.reminder.offsets_minutes", Environment = "dev", ValueJson = "[1440, 60, 15]", Version = 1, UpdatedAt = now },
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000009"), Key = "notifications.dispatcher.max_attempts", Environment = "dev", ValueJson = "3", Version = 1, UpdatedAt = now },
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000010"), Key = "notifications.dispatcher.batch_size", Environment = "dev", ValueJson = "50", Version = 1, UpdatedAt = now },
+            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000011"), Key = "notifications.dispatcher.retry_backoff_base_seconds", Environment = "dev", ValueJson = "10", Version = 1, UpdatedAt = now },
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000007"), Key = "planning.default_timezone", Environment = "dev", ValueJson = "\"Europe/Istanbul\"", Version = 1, UpdatedAt = now },
-            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000008"), Key = "planning.max_plans_per_user", Environment = "dev", ValueJson = "100", Version = 1, UpdatedAt = now }
+            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000008"), Key = "planning.max_plans_per_user", Environment = "dev", ValueJson = "100", Version = 1, UpdatedAt = now },
+            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000012"), Key = "platform.invite.expiration_days", Environment = "dev", ValueJson = "7", Version = 1, UpdatedAt = now },
+            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000013"), Key = "platform.membership.cache_ttl_minutes", Environment = "dev", ValueJson = "5", Version = 1, UpdatedAt = now },
+            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000014"), Key = "gateway.http_client.timeout_seconds", Environment = "dev", ValueJson = "5", Version = 1, UpdatedAt = now },
+            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000015"), Key = "audit.default_page_size", Environment = "dev", ValueJson = "50", Version = 1, UpdatedAt = now }
         );
     }
 }

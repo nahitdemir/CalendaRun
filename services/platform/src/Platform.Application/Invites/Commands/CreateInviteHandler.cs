@@ -1,6 +1,8 @@
+using Calendarun.Settings.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Platform.Application.Common;
+using Platform.Domain;
 using Platform.Domain.Entities;
 using Platform.Infrastructure.Data;
 using System.Text.Json;
@@ -10,11 +12,16 @@ namespace Platform.Application.Invites.Commands;
 public class CreateInviteHandler : ICommandHandler<CreateInviteCommand, Result<CreateInviteResult>>
 {
     private readonly PlatformDbContext _db;
+    private readonly ISettingsClient _settingsClient;
     private readonly ILogger<CreateInviteHandler> _logger;
 
-    public CreateInviteHandler(PlatformDbContext db, ILogger<CreateInviteHandler> logger)
+    public CreateInviteHandler(
+        PlatformDbContext db,
+        ISettingsClient settingsClient,
+        ILogger<CreateInviteHandler> logger)
     {
         _db = db;
+        _settingsClient = settingsClient;
         _logger = logger;
     }
 
@@ -43,6 +50,13 @@ public class CreateInviteHandler : ICommandHandler<CreateInviteCommand, Result<C
         }
 
         var now = DateTimeOffset.UtcNow;
+        
+        // Get invite expiration from Settings (tenant-specific or global)
+        var tenantIdStr = command.TenantId.ToString();
+        var expirationDays = await _settingsClient.GetAsync<int?>(
+            PlatformDefaults.SettingsKeys.InviteExpirationDays, tenantIdStr, ct) 
+            ?? PlatformDefaults.DefaultInviteExpirationDays;
+        
         var invite = new Invite
         {
             Id = Guid.NewGuid(),
@@ -53,7 +67,7 @@ public class CreateInviteHandler : ICommandHandler<CreateInviteCommand, Result<C
             Status = InviteStatus.Pending,
             CreatedAt = now,
             CreatedBy = command.ActorUserId,
-            ExpiresAt = now.AddDays(7)
+            ExpiresAt = now.AddDays(expirationDays)
         };
 
         _db.Invites.Add(invite);

@@ -1,4 +1,5 @@
 using Calendarun.Common.Auth;
+using Calendarun.Settings.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Planning.Application.AuditLogs.Queries;
@@ -16,15 +17,18 @@ public class AdminController : ControllerBase
     private readonly IQueryHandler<GetAdminPlansQuery, Result<List<AdminPlanDto>>> _getAdminPlansHandler;
     private readonly IQueryHandler<GetAdminUsersQuery, Result<List<AdminUserDto>>> _getAdminUsersHandler;
     private readonly IQueryHandler<GetAuditLogsQuery, Result<AuditLogPagedResult>> _getAuditLogsHandler;
+    private readonly ISettingsClient _settingsClient;
 
     public AdminController(
         IQueryHandler<GetAdminPlansQuery, Result<List<AdminPlanDto>>> getAdminPlansHandler,
         IQueryHandler<GetAdminUsersQuery, Result<List<AdminUserDto>>> getAdminUsersHandler,
-        IQueryHandler<GetAuditLogsQuery, Result<AuditLogPagedResult>> getAuditLogsHandler)
+        IQueryHandler<GetAuditLogsQuery, Result<AuditLogPagedResult>> getAuditLogsHandler,
+        ISettingsClient settingsClient)
     {
         _getAdminPlansHandler = getAdminPlansHandler;
         _getAdminUsersHandler = getAdminUsersHandler;
         _getAuditLogsHandler = getAuditLogsHandler;
+        _settingsClient = settingsClient;
     }
 
     /// <summary>
@@ -75,7 +79,7 @@ public class AdminController : ControllerBase
         [FromQuery] DateTimeOffset? from,
         [FromQuery] DateTimeOffset? to,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50,
+        [FromQuery] int? pageSize = null,
         CancellationToken ct = default)
     {
         var isSuperAdmin = IsSuperAdmin();
@@ -88,6 +92,11 @@ public class AdminController : ControllerBase
         if (!isSuperAdmin && !tenantId.HasValue)
             return BadRequest(new { error = "X-Tenant-Id header is required" });
 
+        // Get page size from Settings if not provided (tenant-specific or global)
+        var tenantIdStr = tenantId?.ToString();
+        var effectivePageSize = pageSize ?? await _settingsClient.GetAsync<int?>(
+            AuditDefaults.SettingsKey, tenantIdStr, ct) ?? AuditDefaults.DefaultPageSize;
+
         var query = new GetAuditLogsQuery(
             tenantId,
             isSuperAdmin,
@@ -97,7 +106,7 @@ public class AdminController : ControllerBase
             from,
             to,
             page,
-            pageSize
+            effectivePageSize
         );
 
         var result = await _getAuditLogsHandler.HandleAsync(query, ct);

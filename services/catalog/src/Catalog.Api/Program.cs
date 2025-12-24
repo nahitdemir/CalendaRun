@@ -1,3 +1,4 @@
+using Calendarun.Settings.Client;
 using Catalog.Application;
 using Catalog.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -6,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,6 +39,18 @@ builder.Services.AddSwaggerGen();
 var connectionString = builder.Configuration.GetConnectionString("CatalogDb");
 builder.Services.AddDbContext<CatalogDbContext>(options =>
     options.UseNpgsql(connectionString));
+
+// Redis (for Settings Client)
+builder.Services.AddSingleton<IConnectionMultiplexer>(
+    ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379"));
+
+// Settings Client
+builder.Services.AddSettingsClient(options =>
+{
+    options.SettingsServiceUrl = builder.Configuration["SettingsService:Url"] ?? "http://localhost:5301";
+    options.RedisConnectionString = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
+    options.Environment = builder.Environment.EnvironmentName.ToLower();
+});
 
 // Application Layer (CQRS Handlers)
 builder.Services.AddApplication();

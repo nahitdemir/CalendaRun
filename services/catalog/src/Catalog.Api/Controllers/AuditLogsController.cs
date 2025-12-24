@@ -1,4 +1,5 @@
 using Calendarun.Common.Auth;
+using Calendarun.Settings.Client;
 using Catalog.Application.AuditLogs.Queries;
 using Catalog.Application.Common;
 using Microsoft.AspNetCore.Authorization;
@@ -11,11 +12,14 @@ namespace Catalog.Api.Controllers;
 public class AuditLogsController : ControllerBase
 {
     private readonly IQueryHandler<GetAuditLogsQuery, Result<AuditLogPagedResult>> _getAuditLogsHandler;
+    private readonly ISettingsClient _settingsClient;
 
     public AuditLogsController(
-        IQueryHandler<GetAuditLogsQuery, Result<AuditLogPagedResult>> getAuditLogsHandler)
+        IQueryHandler<GetAuditLogsQuery, Result<AuditLogPagedResult>> getAuditLogsHandler,
+        ISettingsClient settingsClient)
     {
         _getAuditLogsHandler = getAuditLogsHandler;
+        _settingsClient = settingsClient;
     }
 
     /// <summary>
@@ -29,7 +33,7 @@ public class AuditLogsController : ControllerBase
         [FromQuery] DateTimeOffset? from,
         [FromQuery] DateTimeOffset? to,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50,
+        [FromQuery] int? pageSize = null,
         CancellationToken ct = default)
     {
         var isSuperAdmin = IsSuperAdmin();
@@ -42,6 +46,11 @@ public class AuditLogsController : ControllerBase
         if (!isSuperAdmin && !tenantId.HasValue)
             return BadRequest(new { error = "X-Tenant-Id header is required" });
 
+        // Get page size from Settings if not provided (tenant-specific or global)
+        var tenantIdStr = tenantId?.ToString();
+        var effectivePageSize = pageSize ?? await _settingsClient.GetAsync<int?>(
+            AuditDefaults.SettingsKey, tenantIdStr, ct) ?? AuditDefaults.DefaultPageSize;
+
         var query = new GetAuditLogsQuery(
             tenantId,
             isSuperAdmin,
@@ -51,7 +60,7 @@ public class AuditLogsController : ControllerBase
             from,
             to,
             page,
-            pageSize
+            effectivePageSize
         );
 
         var result = await _getAuditLogsHandler.HandleAsync(query, ct);

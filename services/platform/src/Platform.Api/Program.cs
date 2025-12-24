@@ -1,4 +1,5 @@
 using Calendarun.Common.Auth;
+using Calendarun.Settings.Client;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -37,6 +38,14 @@ builder.Services.AddDbContext<PlatformDbContext>(options =>
 // Redis
 builder.Services.AddSingleton<IConnectionMultiplexer>(
     ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
+
+// Settings Client
+builder.Services.AddSettingsClient(options =>
+{
+    options.SettingsServiceUrl = builder.Configuration["SettingsService:Url"] ?? "http://localhost:5301";
+    options.RedisConnectionString = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
+    options.Environment = builder.Environment.EnvironmentName.ToLower();
+});
 
 // Application Layer (CQRS Handlers)
 builder.Services.AddApplication();

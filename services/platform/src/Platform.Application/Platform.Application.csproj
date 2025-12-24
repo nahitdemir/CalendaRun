@@ -10,6 +10,7 @@
     <ProjectReference Include="..\Platform.Domain\Platform.Domain.csproj" />
     <ProjectReference Include="..\Platform.Infrastructure\Platform.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\..\building-blocks\Common\Calendarun.Common\Calendarun.Common.csproj" />
+    <ProjectReference Include="..\..\..\..\building-blocks\Settings\Calendarun.Settings.Client\Calendarun.Settings.Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>

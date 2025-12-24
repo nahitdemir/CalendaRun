@@ -1,4 +1,5 @@
 using Calendarun.Common.Auth;
+using Calendarun.Settings.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Application.AuditLogs.Queries;
@@ -12,11 +13,14 @@ namespace Platform.Api.Controllers;
 public class AuditLogsController : ControllerBase
 {
     private readonly IQueryHandler<GetAuditLogsQuery, Result<AuditLogPagedResult>> _getAuditLogsHandler;
+    private readonly ISettingsClient _settingsClient;
 
     public AuditLogsController(
-        IQueryHandler<GetAuditLogsQuery, Result<AuditLogPagedResult>> getAuditLogsHandler)
+        IQueryHandler<GetAuditLogsQuery, Result<AuditLogPagedResult>> getAuditLogsHandler,
+        ISettingsClient settingsClient)
     {
         _getAuditLogsHandler = getAuditLogsHandler;
+        _settingsClient = settingsClient;
     }
 
     /// <summary>
@@ -31,11 +35,15 @@ public class AuditLogsController : ControllerBase
         [FromQuery] DateTimeOffset? from,
         [FromQuery] DateTimeOffset? to,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50,
+        [FromQuery] int? pageSize = null,
         CancellationToken ct = default)
     {
         if (!IsSuperAdmin())
             return Forbid();
+
+        // Get page size from Settings if not provided
+        var effectivePageSize = pageSize ?? await _settingsClient.GetAsync<int?>(
+            AuditDefaults.SettingsKey, null, ct) ?? AuditDefaults.DefaultPageSize;
 
         var query = new GetAuditLogsQuery(
             tenantId,
@@ -46,7 +54,7 @@ public class AuditLogsController : ControllerBase
             from,
             to,
             page,
-            pageSize
+            effectivePageSize
         );
 
         var result = await _getAuditLogsHandler.HandleAsync(query, ct);
@@ -64,7 +72,7 @@ public class AuditLogsController : ControllerBase
         [FromQuery] DateTimeOffset? from,
         [FromQuery] DateTimeOffset? to,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50,
+        [FromQuery] int? pageSize = null,
         CancellationToken ct = default)
     {
         var tenantId = GetTenantIdFromHeader();
@@ -78,6 +86,11 @@ public class AuditLogsController : ControllerBase
         if (!isSuperAdmin && !tenantId.HasValue)
             return BadRequest(new { error = "X-Tenant-Id header is required" });
 
+        // Get page size from Settings if not provided (tenant-specific or global)
+        var tenantIdStr = tenantId?.ToString();
+        var effectivePageSize = pageSize ?? await _settingsClient.GetAsync<int?>(
+            AuditDefaults.SettingsKey, tenantIdStr, ct) ?? AuditDefaults.DefaultPageSize;
+
         var query = new GetAuditLogsQuery(
             tenantId,
             isSuperAdmin,
@@ -87,7 +100,7 @@ public class AuditLogsController : ControllerBase
             from,
             to,
             page,
-            pageSize
+            effectivePageSize
         );
 
         var result = await _getAuditLogsHandler.HandleAsync(query, ct);
