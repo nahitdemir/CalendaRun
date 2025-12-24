@@ -51,29 +51,13 @@ public static class Defaults
 
     /// <summary>
     /// Settings keys for tenant-specific configuration
-    /// These can be overridden per tenant via Settings service
+    /// Note: Tenant.DefaultLanguage and Tenant.DefaultCurrency are stored in Tenant entity,
+    /// not in Settings, for performance reasons (read on every request).
     /// </summary>
     public static class SettingsKeys
     {
-        /// <summary>
-        /// Tenant default language setting key
-        /// </summary>
-        public const string TenantDefaultLanguage = "tenant.default_language";
-
-        /// <summary>
-        /// Tenant default currency setting key
-        /// </summary>
-        public const string TenantDefaultCurrency = "tenant.default_currency";
-
-        /// <summary>
-        /// Tenant default country code setting key
-        /// </summary>
-        public const string TenantDefaultCountryCode = "tenant.default_country_code";
-
-        /// <summary>
-        /// Tenant default timezone setting key
-        /// </summary>
-        public const string TenantDefaultTimezone = "tenant.default_timezone";
+        // No tenant-general settings keys here.
+        // Domain-specific settings (e.g., planning.*) are defined in their respective domains.
     }
 }
 

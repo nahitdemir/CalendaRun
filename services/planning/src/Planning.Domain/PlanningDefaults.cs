@@ -41,7 +41,7 @@ public static class PlanningDefaults
 
         /// <summary>
         /// Planning default timezone setting key
-        /// Falls back to tenant.default_timezone, then Defaults.Timezone
+        /// Falls back to Defaults.Timezone if not set
         /// </summary>
         public const string DefaultTimezone = "planning.default_timezone";
     }

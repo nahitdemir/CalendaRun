@@ -72,18 +72,9 @@ public class CreatePlanHandler : ICommandHandler<CreatePlanCommand, Result<Creat
                 $"Event already planned. PlanItemId: {existingPlan.Id}");
         }
 
-        // Get timezone from settings (planning-specific first, then tenant-general, then default)
+        // Get timezone from settings (planning-specific, fallback to default)
         var timezone = await _settingsClient.GetAsync<string>(
-            PlanningDefaults.SettingsKeys.DefaultTimezone, tenantIdStr, ct);
-        
-        if (string.IsNullOrEmpty(timezone) && tenantIdStr != PlanningDefaults.GlobalSettingsKey)
-        {
-            // Fallback to tenant-general timezone
-            timezone = await _settingsClient.GetAsync<string>(
-                Defaults.SettingsKeys.TenantDefaultTimezone, tenantIdStr, ct);
-        }
-        
-        timezone ??= PlanningDefaults.DefaultTimezone;
+            PlanningDefaults.SettingsKeys.DefaultTimezone, tenantIdStr, ct) ?? PlanningDefaults.DefaultTimezone;
 
         // Create plan item
         var planItem = new UserPlanItem
