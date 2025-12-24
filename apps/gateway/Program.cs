@@ -55,8 +55,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             ValidateIssuer = true,
             ValidIssuer = keycloakAuthority,
-            ValidateAudience = false,
+            ValidateAudience = true, // Enable audience validation for security
+            ValidAudience = "calendarun-api",
             ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(5), // Allow 5 minutes clock skew
             NameClaimType = CalendarunClaimTypes.PreferredUsername,
             RoleClaimType = CalendarunClaimTypes.RealmRoles
         };

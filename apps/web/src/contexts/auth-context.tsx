@@ -72,8 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (session?.accessToken) {
       return session.accessToken as string;
     }
-    // Fallback to dev token
-    return devToken;
+    // Fallback to dev token (only in development)
+    if (process.env.NODE_ENV === "development" && devToken) {
+      return devToken;
+    }
+    return null;
   }, [session, devToken]);
 
   // Set dev token
@@ -161,9 +164,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [getAccessToken, session, setDevToken, setSelectedTenant]);
 
+  // Handle session error (token refresh failed)
+  useEffect(() => {
+    if (session?.error === "RefreshAccessTokenError") {
+      // Token refresh failed, sign out user
+      console.warn("Token refresh failed, signing out...");
+      signOut({ redirect: false });
+      setUser(null);
+      setTenants([]);
+      setSelectedTenantState(null);
+      setDevTokenState(null);
+    }
+  }, [session?.error]);
+
   // Load profile on auth change
   useEffect(() => {
     if (status === "loading") return;
+
+    // If session has error, don't try to load profile
+    if (session?.error) {
+      setUser(null);
+      setTenants([]);
+      setSelectedTenantState(null);
+      setIsLoading(false);
+      return;
+    }
 
     if (status === "authenticated" || devToken) {
       refreshProfile();
@@ -173,7 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSelectedTenantState(null);
       setIsLoading(false);
     }
-  }, [status, devToken, refreshProfile]);
+  }, [status, session?.error, devToken, refreshProfile]);
 
   // Sync access token to storage for API client
   useEffect(() => {
@@ -186,20 +211,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Listen for unauthorized events from API client
   useEffect(() => {
     const handleUnauthorized = () => {
-      // Silently clear auth state on 401 (user not logged in or token expired)
+      // Token expired or invalid - sign out user
+      console.warn("401 Unauthorized received, signing out...");
       setUser(null);
       setTenants([]);
       setSelectedTenantState(null);
       setDevTokenState(null);
-      // Don't call signOut here to avoid redirect loops
-      // Just clear local state and let user see login UI
+      
+      // Sign out from next-auth (but don't redirect to avoid loops)
+      // The UI will show login state automatically
+      if (status === "authenticated") {
+        signOut({ redirect: false });
+      }
     };
 
     window.addEventListener("auth:unauthorized", handleUnauthorized);
     return () => {
       window.removeEventListener("auth:unauthorized", handleUnauthorized);
     };
-  }, []);
+  }, [status]);
 
   const isAuthenticated = !!user;
   const isSuperAdmin = user?.isSuperAdmin || user?.roles?.includes("super_admin") || false;

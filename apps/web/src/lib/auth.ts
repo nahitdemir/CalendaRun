@@ -49,11 +49,22 @@ export const authOptions: NextAuthOptions = {
       }
 
       // Return previous token if the access token has not expired yet
-      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
+      // Refresh proactively 5 minutes before expiration to avoid race conditions
+      const FIVE_MINUTES = 5 * 60 * 1000;
+      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires - FIVE_MINUTES) {
         return token;
       }
 
-      // Access token has expired, try to refresh it
+      // Access token is about to expire or has expired, try to refresh it
+      // But only if we have a refresh token
+      if (!token.refreshToken) {
+        console.error("No refresh token available, cannot refresh access token");
+        return {
+          ...token,
+          error: "RefreshAccessTokenError",
+        };
+      }
+
       return refreshAccessToken(token);
     },
     async session({ session, token }) {
@@ -79,6 +90,15 @@ export const authOptions: NextAuthOptions = {
 
 async function refreshAccessToken(token: any) {
   try {
+    // Check if refresh token exists
+    if (!token.refreshToken) {
+      console.error("Cannot refresh: no refresh token available");
+      return {
+        ...token,
+        error: "RefreshAccessTokenError",
+      };
+    }
+
     const url = `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
     
     const response = await fetch(url, {
@@ -95,6 +115,7 @@ async function refreshAccessToken(token: any) {
     const refreshedTokens = await response.json();
 
     if (!response.ok) {
+      console.error("Token refresh failed:", refreshedTokens);
       throw refreshedTokens;
     }
 
@@ -103,6 +124,7 @@ async function refreshAccessToken(token: any) {
       accessToken: refreshedTokens.access_token,
       accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
+      error: undefined, // Clear any previous errors
     };
   } catch (error) {
     console.error("Error refreshing access token", error);
