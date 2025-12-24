@@ -105,17 +105,17 @@ start_docker() {
   
   if $FRESH; then
     print_warning "Fresh mode: Volume'lar siliniyor..."
-    docker compose -f infra/docker-compose.yml down -v 2>/dev/null || true
+    docker compose -f infra/docker-compose.yml --env-file infra/local.env down -v 2>/dev/null || true
   fi
   
-  docker compose -f infra/docker-compose.yml up -d
+  docker compose -f infra/docker-compose.yml --env-file infra/local.env up -d
   
   # Wait for PostgreSQL
   print_step "PostgreSQL bağlantısı bekleniyor..."
   local max_wait=30
   local waited=0
   
-  while ! docker compose -f infra/docker-compose.yml exec -T postgres pg_isready -U calendarun >/dev/null 2>&1; do
+  while ! docker compose -f infra/docker-compose.yml --env-file infra/local.env exec -T postgres pg_isready -U calendarun >/dev/null 2>&1; do
     if [ $waited -ge $max_wait ]; then
       print_warning "PostgreSQL hala hazır değil, devam ediliyor..."
       break
@@ -130,7 +130,7 @@ start_docker() {
   # Wait for Redis
   print_step "Redis bağlantısı bekleniyor..."
   waited=0
-  while ! docker compose -f infra/docker-compose.yml exec -T redis redis-cli ping >/dev/null 2>&1; do
+  while ! docker compose -f infra/docker-compose.yml --env-file infra/local.env exec -T redis redis-cli ping >/dev/null 2>&1; do
     if [ $waited -ge $max_wait ]; then
       print_warning "Redis hala hazır değil, devam ediliyor..."
       break
