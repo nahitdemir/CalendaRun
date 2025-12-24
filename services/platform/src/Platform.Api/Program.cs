@@ -21,12 +21,6 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// ==================== KESTREL ====================
-builder.WebHost.ConfigureKestrel(serverOptions =>
-{
-    serverOptions.ListenLocalhost(5401);
-});
-
 // ==================== SERVICES ====================
 
 // Controllers
