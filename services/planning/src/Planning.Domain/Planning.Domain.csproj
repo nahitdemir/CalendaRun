@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\building-blocks\Common\Calendarun.Common\Calendarun.Common.csproj" />
+  </ItemGroup>
+
 </Project>

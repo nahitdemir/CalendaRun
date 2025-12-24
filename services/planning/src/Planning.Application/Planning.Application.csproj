@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Planning.Domain\Planning.Domain.csproj" />
     <ProjectReference Include="..\Planning.Infrastructure\Planning.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\..\building-blocks\Common\Calendarun.Common\Calendarun.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>
