@@ -23,6 +23,7 @@
     <ProjectReference Include="..\Catalog.Application\Catalog.Application.csproj" />
     <ProjectReference Include="..\Catalog.Infrastructure\Catalog.Infrastructure.csproj" />
     <ProjectReference Include="..\Catalog.Domain\Catalog.Domain.csproj" />
+    <ProjectReference Include="..\..\..\..\building-blocks\Common\Calendarun.Common\Calendarun.Common.csproj" />
   </ItemGroup>
 
 </Project>

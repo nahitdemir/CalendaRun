@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using Catalog.Application.Common;
 using Catalog.Application.Events.Commands;
 using Catalog.Application.Events.Queries;
@@ -81,7 +82,7 @@ public class EventsController : ControllerBase
             return Unauthorized();
 
         // Only tenant_admin or super_admin can create events
-        if (!isSuperAdmin && role != "TenantAdmin")
+        if (!isSuperAdmin && role != nameof(TenantRole.TenantAdmin))
             return Forbid();
 
         var command = new CreateEventCommand(
@@ -148,7 +149,7 @@ public class EventsController : ControllerBase
             return Unauthorized();
 
         // Only tenant_admin or super_admin can delete
-        if (!isSuperAdmin && role != "TenantAdmin")
+        if (!isSuperAdmin && role != nameof(TenantRole.TenantAdmin))
             return Forbid();
 
         var command = new DeleteEventCommand(

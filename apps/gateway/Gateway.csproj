@@ -16,4 +16,8 @@
     <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\building-blocks\Common\Calendarun.Common\Calendarun.Common.csproj" />
+  </ItemGroup>
+
 </Project>

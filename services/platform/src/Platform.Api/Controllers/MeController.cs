@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Domain.Entities;
@@ -94,7 +95,7 @@ public class MeController : ControllerBase
         var roles = new List<string>();
         
         // Get realm roles
-        var realmRoles = User.FindAll("realm_roles").Select(c => c.Value);
+        var realmRoles = User.FindAll(CalendarunClaimTypes.RealmRoles).Select(c => c.Value);
         roles.AddRange(realmRoles);
         
         // Get resource roles if present
@@ -106,8 +107,8 @@ public class MeController : ControllerBase
 
     private bool IsSuperAdmin()
     {
-        return User.HasClaim("realm_roles", "super_admin") ||
-               User.IsInRole("super_admin");
+        return User.HasClaim(CalendarunClaimTypes.RealmRoles, Roles.SuperAdmin) ||
+               User.IsInRole(Roles.SuperAdmin);
     }
 }
 

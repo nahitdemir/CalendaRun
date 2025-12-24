@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Planning.Application.Common;
@@ -86,7 +87,7 @@ public class PlansController : ControllerBase
             return Unauthorized();
 
         // Only tenant_admin or super_admin can delete
-        if (!isSuperAdmin && role != "TenantAdmin")
+        if (!isSuperAdmin && role != nameof(TenantRole.TenantAdmin))
             return Forbid();
 
         var command = new DeletePlanCommand(

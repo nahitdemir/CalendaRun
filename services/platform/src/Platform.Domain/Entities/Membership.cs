@@ -1,3 +1,5 @@
+using Calendarun.Common.Auth;
+
 namespace Platform.Domain.Entities;
 
 public class Membership
@@ -13,12 +15,6 @@ public class Membership
     public DateTimeOffset? AcceptedAt { get; set; }
 
     public Tenant Tenant { get; set; } = null!;
-}
-
-public enum TenantRole
-{
-    TenantAdmin,
-    TenantUser
 }
 
 public enum MembershipStatus

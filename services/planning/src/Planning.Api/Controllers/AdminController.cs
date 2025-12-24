@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Planning.Application.AuditLogs.Queries;
@@ -36,7 +37,7 @@ public class AdminController : ControllerBase
         var role = GetTenantRole();
 
         // Authorization check - only tenant_admin or super_admin
-        if (!isSuperAdmin && role != "TenantAdmin")
+        if (!isSuperAdmin && role != nameof(TenantRole.TenantAdmin))
             return Forbid();
 
         var result = await _getAdminPlansHandler.HandleAsync(
@@ -54,7 +55,7 @@ public class AdminController : ControllerBase
         var isSuperAdmin = IsSuperAdmin();
         var role = GetTenantRole();
 
-        if (!isSuperAdmin && role != "TenantAdmin")
+        if (!isSuperAdmin && role != nameof(TenantRole.TenantAdmin))
             return Forbid();
 
         var result = await _getAdminUsersHandler.HandleAsync(
@@ -80,7 +81,7 @@ public class AdminController : ControllerBase
         var isSuperAdmin = IsSuperAdmin();
         var role = GetTenantRole();
 
-        if (!isSuperAdmin && role != "TenantAdmin")
+        if (!isSuperAdmin && role != nameof(TenantRole.TenantAdmin))
             return Forbid();
 
         var tenantId = GetTenantId();

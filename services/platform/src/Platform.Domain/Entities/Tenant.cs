@@ -1,3 +1,5 @@
+using Calendarun.Common;
+
 namespace Platform.Domain.Entities;
 
 public class Tenant
@@ -7,8 +9,8 @@ public class Tenant
     public string Slug { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? LogoUrl { get; set; }
-    public string DefaultLanguage { get; set; } = "tr";
-    public string DefaultCurrency { get; set; } = "TRY";
+    public string DefaultLanguage { get; set; } = Defaults.Language;
+    public string DefaultCurrency { get; set; } = Defaults.Currency;
     public TenantStatus Status { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public Guid? CreatedBy { get; set; }

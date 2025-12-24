@@ -1,3 +1,4 @@
+using Calendarun.Common;
 using Catalog.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -59,7 +60,7 @@ public class CatalogDbContext : DbContext
                 Description = "44th Istanbul Marathon - intercontinental running experience",
                 StartAt = new DateTimeOffset(2025, 1, 5, 8, 0, 0, TimeSpan.FromHours(3)),
                 City = "Istanbul",
-                CountryCode = "TR",
+                CountryCode = Defaults.CountryCode,
                 RegistrationUrl = "https://istanbulmarathon.org",
                 CreatedAt = seedTime
             },
@@ -71,7 +72,7 @@ public class CatalogDbContext : DbContext
                 Description = "100km trail run through fairy chimneys",
                 StartAt = new DateTimeOffset(2025, 1, 3, 7, 0, 0, TimeSpan.FromHours(3)),
                 City = "Nevşehir",
-                CountryCode = "TR",
+                CountryCode = Defaults.CountryCode,
                 RegistrationUrl = "https://cappadociaultra.com",
                 CreatedAt = seedTime
             },
@@ -83,7 +84,7 @@ public class CatalogDbContext : DbContext
                 Description = "Scenic coastal run along Turkish Riviera",
                 StartAt = new DateTimeOffset(2025, 1, 2, 9, 0, 0, TimeSpan.FromHours(3)),
                 City = "Antalya",
-                CountryCode = "TR",
+                CountryCode = Defaults.CountryCode,
                 RegistrationUrl = "https://antalyahalf.com",
                 CreatedAt = seedTime
             }

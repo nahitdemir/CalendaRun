@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
@@ -56,8 +57,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = keycloakAuthority,
             ValidateAudience = false,
             ValidateLifetime = true,
-            NameClaimType = "preferred_username",
-            RoleClaimType = "realm_roles"
+            NameClaimType = CalendarunClaimTypes.PreferredUsername,
+            RoleClaimType = CalendarunClaimTypes.RealmRoles
         };
     });
 
@@ -92,7 +93,7 @@ builder.Services.AddReverseProxy()
                     ?? httpContext.User.FindFirstValue("sub");
                 var email = httpContext.User.FindFirstValue(ClaimTypes.Email) 
                     ?? httpContext.User.FindFirstValue("email");
-                var isSuperAdmin = httpContext.User.HasClaim("realm_roles", "super_admin");
+                var isSuperAdmin = httpContext.User.HasClaim(CalendarunClaimTypes.RealmRoles, Roles.SuperAdmin);
                 
                 if (!string.IsNullOrEmpty(userId))
                 {
@@ -164,7 +165,7 @@ app.Use(async (context, next) =>
             return;
         }
 
-        if (!context.User.HasClaim("realm_roles", "super_admin"))
+        if (!context.User.HasClaim(CalendarunClaimTypes.RealmRoles, Roles.SuperAdmin))
         {
             context.Response.StatusCode = 403;
             await context.Response.WriteAsJsonAsync(new { error = "Super admin role required" });
@@ -229,7 +230,7 @@ app.Use(async (context, next) =>
         }
 
         // Super admin bypasses tenant membership check
-        if (context.User.HasClaim("realm_roles", "super_admin"))
+        if (context.User.HasClaim(CalendarunClaimTypes.RealmRoles, Roles.SuperAdmin))
         {
             context.Items["ValidatedTenantId"] = tenantId;
             context.Items["TenantRole"] = "SuperAdmin";

@@ -29,6 +29,7 @@
     <ProjectReference Include="..\Planning.Domain\Planning.Domain.csproj" />
     <ProjectReference Include="..\..\..\..\building-blocks\Contracts\Contracts.csproj" />
     <ProjectReference Include="..\..\..\..\building-blocks\Settings\Calendarun.Settings.Client\Calendarun.Settings.Client.csproj" />
+    <ProjectReference Include="..\..\..\..\building-blocks\Common\Calendarun.Common\Calendarun.Common.csproj" />
   </ItemGroup>
 
 </Project>

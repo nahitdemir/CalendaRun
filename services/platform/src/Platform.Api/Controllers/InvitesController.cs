@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Application.Common;
@@ -98,7 +99,7 @@ public class InvitesController : ControllerBase
 
     private bool IsSuperAdmin()
     {
-        return User.HasClaim("realm_roles", "super_admin");
+        return User.HasClaim(CalendarunClaimTypes.RealmRoles, Roles.SuperAdmin);
     }
 
     private IActionResult ToActionResult<T>(Result<T> result, Func<T, IActionResult> onSuccess)

@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -54,15 +55,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = keycloakAuthority,
             ValidateAudience = false,
             ValidateLifetime = true,
-            NameClaimType = "preferred_username",
-            RoleClaimType = "realm_roles"
+            NameClaimType = CalendarunClaimTypes.PreferredUsername,
+            RoleClaimType = CalendarunClaimTypes.RealmRoles
         };
     });
 
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("SuperAdmin", policy =>
-        policy.RequireClaim("realm_roles", "super_admin"));
+        policy.RequireClaim(CalendarunClaimTypes.RealmRoles, Roles.SuperAdmin));
 });
 
 // ==================== HEALTH CHECKS ====================

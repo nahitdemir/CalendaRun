@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using Catalog.Application.AuditLogs.Queries;
 using Catalog.Application.Common;
 using Microsoft.AspNetCore.Authorization;
@@ -34,7 +35,7 @@ public class AuditLogsController : ControllerBase
         var isSuperAdmin = IsSuperAdmin();
         var role = GetTenantRole();
 
-        if (!isSuperAdmin && role != "TenantAdmin")
+        if (!isSuperAdmin && role != nameof(TenantRole.TenantAdmin))
             return Forbid();
 
         var tenantId = GetTenantId();

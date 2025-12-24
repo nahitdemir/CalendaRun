@@ -1,3 +1,4 @@
+using Calendarun.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Platform.Application.Common;
@@ -36,8 +37,8 @@ public class CreateTenantHandler : ICommandHandler<CreateTenantCommand, Result<C
             Name = command.Name,
             Slug = slug,
             Description = command.Description,
-            DefaultLanguage = command.DefaultLanguage ?? "tr",
-            DefaultCurrency = command.DefaultCurrency ?? "TRY",
+            DefaultLanguage = command.DefaultLanguage ?? Defaults.Language,
+            DefaultCurrency = command.DefaultCurrency ?? Defaults.Currency,
             Status = TenantStatus.Active,
             CreatedAt = now,
             CreatedBy = command.ActorUserId

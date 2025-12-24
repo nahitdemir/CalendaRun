@@ -1,5 +1,5 @@
+using Calendarun.Common.Auth;
 using Platform.Application.Common;
-using Platform.Domain.Entities;
 
 namespace Platform.Application.Invites.Commands;
 

@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using Catalog.Application.Common;
 using Catalog.Application.Events.Queries;
 using Microsoft.AspNetCore.Authorization;
@@ -28,7 +29,7 @@ public class AdminEventsController : ControllerBase
         var role = GetTenantRole();
 
         // Authorization check
-        if (!isSuperAdmin && role != "TenantAdmin")
+        if (!isSuperAdmin && role != nameof(TenantRole.TenantAdmin))
             return Forbid();
 
         var query = new GetAdminEventsQuery(GetTenantId(), isSuperAdmin);

@@ -1,3 +1,5 @@
+using Calendarun.Common;
+using Calendarun.Common.Auth;
 using Microsoft.EntityFrameworkCore;
 using Platform.Domain.Entities;
 
@@ -25,8 +27,8 @@ public class PlatformDbContext : DbContext
             entity.Property(e => e.Slug).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.LogoUrl).HasMaxLength(500);
-            entity.Property(e => e.DefaultLanguage).IsRequired().HasMaxLength(10).HasDefaultValue("tr");
-            entity.Property(e => e.DefaultCurrency).IsRequired().HasMaxLength(10).HasDefaultValue("TRY");
+            entity.Property(e => e.DefaultLanguage).IsRequired().HasMaxLength(10).HasDefaultValue(Defaults.Language);
+            entity.Property(e => e.DefaultCurrency).IsRequired().HasMaxLength(10).HasDefaultValue(Defaults.Currency);
             entity.Property(e => e.Status).IsRequired().HasConversion<string>().HasMaxLength(50);
             entity.HasIndex(e => e.Slug).IsUnique();
         });
@@ -87,8 +89,8 @@ public class PlatformDbContext : DbContext
                 Name = "Tenant1",
                 Slug = "tenant1",
                 Description = "First tenant for development",
-                DefaultLanguage = "tr",
-                DefaultCurrency = "TRY",
+                DefaultLanguage = Defaults.Language,
+                DefaultCurrency = Defaults.Currency,
                 Status = TenantStatus.Active,
                 CreatedAt = seedTime,
                 CreatedBy = null // Created by system

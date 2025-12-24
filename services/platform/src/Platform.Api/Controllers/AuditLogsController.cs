@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Application.AuditLogs.Queries;
@@ -71,7 +72,7 @@ public class AuditLogsController : ControllerBase
         var role = GetTenantRole();
 
         // Only tenant_admin or super_admin can access
-        if (!isSuperAdmin && role != "TenantAdmin")
+        if (!isSuperAdmin && role != nameof(TenantRole.TenantAdmin))
             return Forbid();
 
         if (!isSuperAdmin && !tenantId.HasValue)
@@ -155,7 +156,7 @@ public class AuditLogsController : ControllerBase
 
     private bool IsSuperAdmin()
     {
-        return User.HasClaim("realm_roles", "super_admin");
+        return User.HasClaim(CalendarunClaimTypes.RealmRoles, Roles.SuperAdmin);
     }
 
     private IActionResult ToActionResult<T>(Result<T> result, Func<T, IActionResult> onSuccess)

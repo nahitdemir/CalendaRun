@@ -1,3 +1,5 @@
+using Calendarun.Common.Auth;
+
 namespace Platform.Domain.Entities;
 
 public class Invite
