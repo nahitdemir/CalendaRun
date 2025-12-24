@@ -6,24 +6,58 @@ import { useAuth } from "@/contexts/auth-context";
 import { useTranslation } from "@/contexts/locale-context";
 import { useToast } from "@/components/ui/toast";
 import { useApiMutation } from "@/hooks/use-api-error";
-import { eventsApi, plansApi } from "@/lib/api-client";
+import { eventsApi, plansApi, Event, EventMilestone, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DistanceBadge, Distance } from "@/components/distance-badge";
 import { MilestoneTimeline, Milestone } from "@/components/milestone-timeline";
 import { EmptyState } from "@/components/empty-state";
+import { EventDetailSkeleton } from "@/components/event-detail-skeleton";
 import {
   Calendar,
   MapPin,
   ExternalLink,
   ArrowLeft,
   Flag,
-  User,
-  Clock,
   Download,
   Plus,
+  CalendarX,
+  SearchX,
 } from "lucide-react";
+
+type RegistrationStatus = "Open" | "OpenSoon" | "Closed";
+
+function determineRegistrationStatus(
+  milestones: EventMilestone[] | undefined,
+  registrationUrl: string | null
+): RegistrationStatus {
+  if (!milestones || milestones.length === 0) {
+    return registrationUrl ? "Open" : "Closed";
+  }
+
+  const now = new Date();
+  const regOpen = milestones.find((m) => m.type === "REG_OPEN");
+  const regClose = milestones.find((m) => m.type === "REG_CLOSE");
+
+  if (regClose && new Date(regClose.date) < now) {
+    return "Closed";
+  }
+
+  if (regOpen) {
+    const openDate = new Date(regOpen.date);
+    if (openDate < now) {
+      return registrationUrl ? "Open" : "Closed";
+    }
+    // Registration opens in the future
+    const daysUntilOpen = (openDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysUntilOpen <= 7) {
+      return "OpenSoon";
+    }
+  }
+
+  return registrationUrl ? "Open" : "Closed";
+}
 
 export default function EventDetailPage({
   params,
@@ -32,7 +66,7 @@ export default function EventDetailPage({
 }) {
   const { id } = params;
   const router = useRouter();
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, login, selectedTenant } = useAuth();
   const { t, locale } = useTranslation();
   const toast = useToast();
   const { onError } = useApiMutation();
@@ -46,13 +80,20 @@ export default function EventDetailPage({
     queryKey: ["event", id],
     queryFn: () => eventsApi.getById(id),
     enabled: !!id,
+    retry: (failureCount, error) => {
+      // Don't retry on 404 or 403
+      if (error instanceof ApiError && (error.status === 404 || error.status === 403)) {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
 
   // Fetch milestones
   const { data: milestones } = useQuery({
     queryKey: ["event-milestones", id],
     queryFn: () => eventsApi.getMilestones(id),
-    enabled: !!id,
+    enabled: !!id && !!event,
   });
 
   // Format date
@@ -74,7 +115,11 @@ export default function EventDetailPage({
       await plansApi.create(id);
       toast.success(t("toast.addedToPlan"));
     } catch (err) {
-      onError(err);
+      if (err instanceof ApiError && err.status === 409) {
+        toast.error(t("toast.alreadyInPlan"));
+      } else {
+        onError(err);
+      }
     }
   };
 
@@ -86,31 +131,58 @@ export default function EventDetailPage({
 
   // Loading state
   if (isLoading) {
+    return <EventDetailSkeleton />;
+  }
+
+  // Error state - 404
+  if (error instanceof ApiError && error.status === 404) {
     return (
-      <div className="container-app max-w-4xl">
-        <Skeleton className="mb-4 h-8 w-32" />
-        <Skeleton className="mb-6 h-12 w-3/4" />
-        <div className="space-y-4">
-          <Skeleton className="h-6 w-1/2" />
-          <Skeleton className="h-6 w-1/3" />
-          <Skeleton className="h-32 w-full rounded-2xl" />
-        </div>
+      <div className="container-app max-w-6xl">
+        <EmptyState
+          icon={CalendarX}
+          title={t("event.notFoundTitle")}
+          description={t("event.notFoundDesc")}
+          action={{
+            label: t("nav.backToExplore"),
+            onClick: () => router.push("/"),
+          }}
+        />
       </div>
     );
   }
 
-  // Error state
+  // Error state - 403 Forbidden
+  if (error instanceof ApiError && error.status === 403) {
+    return (
+      <div className="container-app max-w-6xl">
+        <EmptyState
+          icon={SearchX}
+          title={t("event.forbiddenTitle")}
+          description={t("event.forbiddenDesc")}
+          action={
+            selectedTenant
+              ? {
+                  label: t("nav.selectTenant"),
+                  onClick: () => {
+                    // Trigger tenant selector (could be a modal or navigation)
+                    router.push("/");
+                  },
+                }
+              : undefined
+          }
+        />
+      </div>
+    );
+  }
+
+  // Error state - other errors
   if (error || !event) {
     return (
-      <div className="container-app">
+      <div className="container-app max-w-6xl">
         <EmptyState
-          variant="events"
-          title={locale === "tr" ? "Etkinlik bulunamadı" : "Event not found"}
-          description={
-            locale === "tr"
-              ? "Aradığınız etkinlik mevcut değil veya silinmiş olabilir."
-              : "The event you are looking for does not exist or may have been deleted."
-          }
+          icon={CalendarX}
+          title={t("event.notFoundTitle")}
+          description={t("event.notFoundDesc")}
           action={{
             label: t("nav.backToExplore"),
             onClick: () => router.push("/"),
@@ -126,61 +198,66 @@ export default function EventDetailPage({
   );
 
   // Determine registration status
-  const now = new Date();
-  const eventDate = new Date(event.startAt);
-  const isPast = eventDate < now;
-  const hasRegistration = !!event.registrationUrl;
+  const registrationStatus = determineRegistrationStatus(milestones, event.registrationUrl);
 
-  // Convert milestones to timeline format
-  const timelineMilestones: Milestone[] = (milestones || []).map((m) => ({
-    id: m.id,
-    type: m.type,
-    label: m.label,
-    date: m.date,
-    description: m.description,
-    status:
-      new Date(m.date) < now
-        ? "completed"
-        : new Date(m.date).toDateString() === now.toDateString()
-        ? "current"
-        : "upcoming",
-  }));
+  // Convert milestones to timeline format (only REG_OPEN and REG_CLOSE)
+  const timelineMilestones: Milestone[] = (milestones || [])
+    .filter((m) => m.type === "REG_OPEN" || m.type === "REG_CLOSE")
+    .map((m) => {
+      const now = new Date();
+      const milestoneDate = new Date(m.date);
+      return {
+        id: m.id,
+        type: m.type,
+        label: m.label,
+        date: m.date,
+        description: m.description,
+        status:
+          milestoneDate < now
+            ? "completed"
+            : milestoneDate.toDateString() === now.toDateString()
+            ? "current"
+            : "upcoming",
+      };
+    });
+
+  // Registration status badge config
+  const registrationStatusConfig = {
+    Open: {
+      label: t("event.registrationOpen"),
+      variant: "success" as const,
+    },
+    OpenSoon: {
+      label: t("event.registrationOpenSoon"),
+      variant: "secondary" as const,
+    },
+    Closed: {
+      label: t("event.registrationClosed"),
+      variant: "muted" as const,
+    },
+  };
+
+  const regStatus = registrationStatusConfig[registrationStatus];
 
   return (
-    <div className="container-app max-w-4xl">
-      {/* Back button */}
+    <div className="container-app max-w-6xl">
+      {/* Back link */}
       <button
-        onClick={() => router.back()}
+        onClick={() => router.push("/")}
         className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
         {t("nav.backToExplore")}
       </button>
 
-      {/* Header */}
+      {/* Header section */}
       <div className="mb-8">
-        {/* Distance badges */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          {distances.map((d) => (
-            <DistanceBadge key={d} distance={d} />
-          ))}
-          {isPast && (
-            <Badge variant="muted">{t("event.past")}</Badge>
-          )}
-          {!isPast && hasRegistration && (
-            <Badge variant="success" className="gap-1">
-              <Flag className="h-3 w-3" />
-              {t("event.registrationOpen")}
-            </Badge>
-          )}
-        </div>
-
         {/* Title */}
-        <h1 className="mb-4 font-display text-3xl font-bold tracking-tight md:text-4xl">
+        <h1 className="mb-4 font-display text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl">
           {event.title}
         </h1>
 
-        {/* Meta */}
+        {/* Meta row */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-muted-foreground">
           <span className="inline-flex items-center gap-2">
             <MapPin className="h-5 w-5" />
@@ -190,17 +267,21 @@ export default function EventDetailPage({
             <Calendar className="h-5 w-5" />
             {formatDate(event.startAt)}
           </span>
-          {event.endAt && (
-            <span className="inline-flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              {formatDate(event.endAt, { dateStyle: undefined, timeStyle: "short" })}
-            </span>
+          {distances.length > 0 && (
+            <div className="inline-flex items-center gap-2">
+              <Flag className="h-5 w-5" />
+              <div className="flex flex-wrap gap-1.5">
+                {distances.map((d) => (
+                  <DistanceBadge key={d} distance={d} />
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="mb-8 flex flex-wrap gap-3">
+      {/* Actions (desktop right / mobile stacked) */}
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row">
         <Button variant="accent" size="lg" onClick={handleAddToPlan} className="gap-2">
           <Plus className="h-4 w-4" />
           {t("event.addToPlan")}
@@ -210,101 +291,89 @@ export default function EventDetailPage({
           <Download className="h-4 w-4" />
           {t("event.addToCalendar")}
         </Button>
-
-        {hasRegistration && !isPast && (
-          <Button variant="outline" size="lg" asChild>
-            <a
-              href={event.registrationUrl!}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="gap-2"
-            >
-              <ExternalLink className="h-4 w-4" />
-              {t("event.registration")}
-            </a>
-          </Button>
-        )}
       </div>
 
-      {/* Content grid */}
-      <div className="grid gap-8 lg:grid-cols-3">
-        {/* Main content */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Description */}
-          {event.description && (
-            <section>
-              <h2 className="mb-4 text-lg font-semibold">
-                {locale === "tr" ? "Açıklama" : "Description"}
-              </h2>
-              <p className="text-muted-foreground whitespace-pre-wrap">
+      {/* Sections */}
+      <div className="space-y-6">
+        {/* Registration card */}
+        <Card className="rounded-2xl border shadow-sm">
+          <CardHeader>
+            <CardTitle>{t("event.registration")}</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <Badge variant={regStatus.variant} className="w-fit">
+              {regStatus.label}
+            </Badge>
+            {event.registrationUrl && registrationStatus !== "Closed" && (
+              <Button variant="outline" size="lg" asChild className="gap-2">
+                <a
+                  href={event.registrationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t("event.registration")}
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Milestones timeline card */}
+        {timelineMilestones.length > 0 && (
+          <Card className="rounded-2xl border shadow-sm">
+            <CardHeader>
+              <CardTitle>{t("event.milestones")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MilestoneTimeline milestones={timelineMilestones} />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Event info card */}
+        <Card className="rounded-2xl border shadow-sm">
+          <CardHeader>
+            <CardTitle>{t("event.description")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {event.description ? (
+              <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
                 {event.description}
               </p>
-            </section>
-          )}
+            ) : (
+              <p className="text-muted-foreground italic">
+                {locale === "tr"
+                  ? "Bu etkinlik için açıklama bulunmuyor."
+                  : "No description available for this event."}
+              </p>
+            )}
 
-          {/* Milestones */}
-          {timelineMilestones.length > 0 && (
-            <section className="rounded-2xl border bg-card p-6">
-              <h2 className="mb-6 text-lg font-semibold">{t("event.milestones")}</h2>
-              <MilestoneTimeline milestones={timelineMilestones} />
-            </section>
-          )}
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Organizer */}
-          {(event.organizerName || event.organizerUrl) && (
-            <section className="rounded-2xl border bg-card p-6">
-              <h3 className="mb-4 font-semibold">{t("event.organizer")}</h3>
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                  <User className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">{event.organizerName || "Organizer"}</p>
+            {/* Organizer info */}
+            {(event.organizerName || event.organizerUrl) && (
+              <div className="pt-4 border-t">
+                <h3 className="mb-2 text-sm font-semibold">{t("event.organizer")}</h3>
+                <div className="flex items-center gap-2">
+                  {event.organizerName && (
+                    <span className="text-sm text-foreground">{event.organizerName}</span>
+                  )}
                   {event.organizerUrl && (
                     <a
                       href={event.organizerUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-accent hover:underline"
+                      className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
                     >
-                      {locale === "tr" ? "Web sitesini ziyaret et" : "Visit website"}
+                      {t("event.visitWebsite")}
+                      <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
                 </div>
               </div>
-            </section>
-          )}
-
-          {/* Quick info */}
-          <section className="rounded-2xl border bg-card p-6">
-            <h3 className="mb-4 font-semibold">
-              {locale === "tr" ? "Hızlı Bilgi" : "Quick Info"}
-            </h3>
-            <dl className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">{t("event.location")}</dt>
-                <dd className="font-medium">
-                  {event.city}, {event.countryCode}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">{t("event.date")}</dt>
-                <dd className="font-medium">{formatDate(event.startAt)}</dd>
-              </div>
-              {distances.length > 0 && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">{t("event.distance")}</dt>
-                  <dd className="font-medium">{distances.join(", ")}</dd>
-                </div>
-              )}
-            </dl>
-          </section>
-        </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
-

@@ -31,7 +31,12 @@ public class PlanningDbContext : DbContext
         modelBuilder.Entity<UserPlanItem>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.State).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.State)
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasConversion(
+                    v => v.ToString(),
+                    v => Enum.Parse<PlanState>(v)); // Store enum as string
             
             entity.HasOne(e => e.User)
                 .WithMany()

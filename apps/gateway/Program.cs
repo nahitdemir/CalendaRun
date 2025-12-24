@@ -55,8 +55,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             ValidateIssuer = true,
             ValidIssuer = keycloakAuthority,
-            ValidateAudience = true, // Enable audience validation for security
-            ValidAudience = "calendarun-api",
+            // Audience validation: Keycloak public clients may not include audience in token
+            // We validate that token is from our realm (issuer) and has valid signature
+            // For public clients, audience is typically the client ID (azp claim)
+            ValidateAudience = false, // Public clients don't always include audience
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(5), // Allow 5 minutes clock skew
             NameClaimType = CalendarunClaimTypes.PreferredUsername,

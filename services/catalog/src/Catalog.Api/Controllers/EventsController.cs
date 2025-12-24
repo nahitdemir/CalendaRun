@@ -12,6 +12,7 @@ namespace Catalog.Api.Controllers;
 public class EventsController : ControllerBase
 {
     private readonly IQueryHandler<GetEventsQuery, Result<List<EventDto>>> _getEventsHandler;
+    private readonly IQueryHandler<GetEventByIdQuery, Result<EventDto>> _getEventByIdHandler;
     private readonly IQueryHandler<GetAdminEventsQuery, Result<List<AdminEventDto>>> _getAdminEventsHandler;
     private readonly ICommandHandler<CreateEventCommand, Result<CreateEventResult>> _createEventHandler;
     private readonly ICommandHandler<UpdateEventCommand, Result<UpdateEventResult>> _updateEventHandler;
@@ -19,12 +20,14 @@ public class EventsController : ControllerBase
 
     public EventsController(
         IQueryHandler<GetEventsQuery, Result<List<EventDto>>> getEventsHandler,
+        IQueryHandler<GetEventByIdQuery, Result<EventDto>> getEventByIdHandler,
         IQueryHandler<GetAdminEventsQuery, Result<List<AdminEventDto>>> getAdminEventsHandler,
         ICommandHandler<CreateEventCommand, Result<CreateEventResult>> createEventHandler,
         ICommandHandler<UpdateEventCommand, Result<UpdateEventResult>> updateEventHandler,
         ICommandHandler<DeleteEventCommand, Result> deleteEventHandler)
     {
         _getEventsHandler = getEventsHandler;
+        _getEventByIdHandler = getEventByIdHandler;
         _getAdminEventsHandler = getAdminEventsHandler;
         _createEventHandler = createEventHandler;
         _updateEventHandler = updateEventHandler;
@@ -39,6 +42,17 @@ public class EventsController : ControllerBase
     {
         var tenantId = GetTenantId();
         var result = await _getEventsHandler.HandleAsync(new GetEventsQuery(tenantId), ct);
+        return ToActionResult(result, Ok);
+    }
+
+    /// <summary>
+    /// Get event by ID - public access (tenant filtering applied if X-Tenant-Id provided)
+    /// </summary>
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetEventById(Guid id, CancellationToken ct)
+    {
+        var tenantId = GetTenantId();
+        var result = await _getEventByIdHandler.HandleAsync(new GetEventByIdQuery(id, tenantId), ct);
         return ToActionResult(result, Ok);
     }
 

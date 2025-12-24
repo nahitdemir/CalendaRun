@@ -17,7 +17,7 @@ public class GetUserPlansHandler : IQueryHandler<GetUserPlansQuery, Result<List<
     public async Task<Result<List<PlanDto>>> HandleAsync(GetUserPlansQuery query, CancellationToken ct = default)
     {
         var plansQuery = _db.UserPlanItems
-            .Where(p => p.UserId == query.UserId && p.State == PlanState.Active);
+            .Where(p => p.UserId == query.UserId);
 
         // Filter by tenant if provided
         if (query.TenantId.HasValue)

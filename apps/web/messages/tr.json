@@ -37,19 +37,46 @@
     "distance": "Mesafe",
     "registrationOpen": "Kayıtlar Açık",
     "registrationClosed": "Kayıtlar Kapandı",
+    "registrationOpenSoon": "Kayıtlar Yakında Açılacak",
     "upcoming": "Yaklaşan",
-    "past": "Geçmiş"
+    "past": "Geçmiş",
+    "description": "Açıklama",
+    "venue": "Mekan",
+    "timezone": "Saat Dilimi",
+    "visitWebsite": "Web sitesini ziyaret et",
+    "notFoundTitle": "Etkinlik bulunamadı",
+    "notFoundDesc": "Aradığınız etkinlik mevcut değil veya silinmiş olabilir.",
+    "forbiddenTitle": "Bu firmada bu etkinliğe erişimin yok",
+    "forbiddenDesc": "Bu etkinliği görüntülemek için farklı bir firma seçmeniz gerekebilir."
   },
   "plan": {
     "title": "Planım",
+    "subtitle": "{upcoming} yaklaşan etkinlik • {pending} kayıt bekliyor",
+    "subtitleNoPending": "{upcoming} yaklaşan etkinlik",
+    "subtitleOnlyPending": "{pending} kayıt bekliyor",
+    "subtitleNone": "Henüz planında etkinlik yok",
     "emptyTitle": "Henüz planına etkinlik eklemedin",
     "emptyDesc": "Keşfet'ten bir yarış seçip tek tıkla planına ekleyebilirsin.",
     "markRegistered": "Kayıt Oldum",
     "markCompleted": "Tamamladım",
     "remove": "Kaldır",
+    "tabs": {
+      "upcoming": "Yaklaşan",
+      "completed": "Tamamlanan",
+      "all": "Tümü"
+    },
+    "sort": {
+      "label": "Sırala",
+      "byDate": "Tarihe göre",
+      "byMilestone": "Önemli tarihlere göre"
+    },
+    "countdown": "Yarışa {days} gün",
+    "nextImportantDate": "Önemli tarih yok",
+    "details": "Detaylar",
+    "registration": "Kayıt sayfası",
     "status": {
       "planned": "Planlandı",
-      "registered": "Kayıtlı",
+      "registered": "Kayıt olundu",
       "completed": "Tamamlandı"
     }
   },
@@ -106,7 +133,8 @@
     "created": "Oluşturuldu",
     "deleted": "Silindi",
     "error": "Bir hata oluştu",
-    "copied": "Kopyalandı"
+    "copied": "Kopyalandı",
+    "alreadyInPlan": "Zaten planında"
   },
   "common": {
     "loading": "Yükleniyor...",

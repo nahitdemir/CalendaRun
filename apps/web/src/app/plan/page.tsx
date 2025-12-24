@@ -1,57 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useTranslation } from "@/contexts/locale-context";
 import { useToast } from "@/components/ui/toast";
 import { useApiMutation } from "@/hooks/use-api-error";
-import { plansApi, PlanItem, eventsApi } from "@/lib/api-client";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { plansApi, PlanItem, eventsApi, Event } from "@/lib/api-client";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { MilestoneTimeline, Milestone } from "@/components/milestone-timeline";
-import { DistanceBadge, Distance } from "@/components/distance-badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { AuthGuard } from "@/components/route-guards";
+import { PlanItemCard } from "@/components/plan-item-card";
+import { PlanPageSkeleton } from "@/components/plan-page-skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Calendar,
-  MapPin,
-  ExternalLink,
-  Trash2,
-  CheckCircle2,
-  Clock,
-  Flag,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Flag } from "lucide-react";
+import { AuthGuard } from "@/components/route-guards";
 
-const statusConfig = {
-  Active: {
-    label: "plan.status.planned",
-    icon: Clock,
-    variant: "muted" as const,
-  },
-  Registered: {
-    label: "plan.status.registered",
-    icon: CheckCircle2,
-    variant: "success" as const,
-  },
-  Completed: {
-    label: "plan.status.completed",
-    icon: Flag,
-    variant: "accent" as const,
-  },
-  Cancelled: {
-    label: "plan.status.planned",
-    icon: Clock,
-    variant: "muted" as const,
-  },
-};
+type TabValue = "upcoming" | "completed" | "all";
+type SortValue = "date" | "milestone";
 
 function PlanPageContent() {
   const router = useRouter();
@@ -60,18 +33,61 @@ function PlanPageContent() {
   const toast = useToast();
   const { onError } = useApiMutation();
 
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [loadingActions, setLoadingActions] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<TabValue>("upcoming");
+  const [sortBy, setSortBy] = useState<SortValue>("date");
 
   // Fetch plans
   const {
-    data: plans,
+    data: plansRaw,
     isLoading,
     error,
   } = useQuery({
     queryKey: ["my-plans"],
     queryFn: () => plansApi.list(),
   });
+
+  // Fetch events for each plan item
+  const eventIds = plansRaw?.map((p) => p.eventId) || [];
+  const { data: events } = useQuery({
+    queryKey: ["events", eventIds],
+    queryFn: async () => {
+      const eventPromises = eventIds.map((id) =>
+        eventsApi.getById(id).catch(() => null)
+      );
+      const results = await Promise.all(eventPromises);
+      return results.filter((e): e is Event => e !== null);
+    },
+    enabled: eventIds.length > 0,
+  });
+
+  // Merge plans with events and normalize state
+  const plans = useMemo(() => {
+    if (!plansRaw) return undefined;
+
+    const eventMap = new Map(events?.map((e) => [e.id, e]) || []);
+
+    return plansRaw.map((plan) => {
+      // Convert state enum (0,1,2,3) to string
+      let stateStr: "Active" | "Registered" | "Completed" | "Cancelled" = "Active";
+      if (typeof plan.state === "number") {
+        const stateMap: ("Active" | "Registered" | "Completed" | "Cancelled")[] = [
+          "Active",
+          "Registered",
+          "Completed",
+          "Cancelled",
+        ];
+        stateStr = stateMap[plan.state] || "Active";
+      } else {
+        stateStr = plan.state;
+      }
+
+      return {
+        ...plan,
+        state: stateStr,
+        event: eventMap.get(plan.eventId),
+      };
+    });
+  }, [plansRaw, events]);
 
   // Update state mutation
   const updateStateMutation = useMutation({
@@ -94,23 +110,12 @@ function PlanPageContent() {
     onError: (err) => onError(err),
   });
 
-  // Format date
-  const formatDate = (dateStr: string) => {
-    return new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }).format(new Date(dateStr));
-  };
-
   // Handle state update
   const handleUpdateState = async (id: string, state: "Registered" | "Completed") => {
-    setLoadingActions((prev) => ({ ...prev, [id]: true }));
     try {
       await updateStateMutation.mutateAsync({ id, state });
-    } finally {
-      setLoadingActions((prev) => ({ ...prev, [id]: false }));
+    } catch (err) {
+      // Error handled by onError
     }
   };
 
@@ -123,45 +128,112 @@ function PlanPageContent() {
     );
     if (!confirmed) return;
 
-    setLoadingActions((prev) => ({ ...prev, [id]: true }));
     try {
       await deleteMutation.mutateAsync(id);
-    } finally {
-      setLoadingActions((prev) => ({ ...prev, [id]: false }));
+    } catch (err) {
+      // Error handled by onError
     }
   };
 
-  // Handle error in useEffect to avoid infinite loop
-  useEffect(() => {
-    if (error) {
-      onError(error);
-    }
-  }, [error, onError]);
+  // Filter and sort plans
+  const filteredAndSortedPlans = useMemo(() => {
+    if (!plans) return [];
 
+    let filtered: PlanItem[] = [];
+
+    // Filter by tab
+    switch (activeTab) {
+      case "upcoming":
+        filtered = plans.filter(
+          (p) => (p.state === "Active" || p.state === "Registered") && p.event
+        );
+        break;
+      case "completed":
+        filtered = plans.filter((p) => p.state === "Completed" && p.event);
+        break;
+      case "all":
+        filtered = plans.filter((p) => p.event); // Only show plans with events
+        break;
+    }
+
+    // Sort
+    const sorted = [...filtered].sort((a, b) => {
+      if (!a.event || !b.event) return 0;
+
+      if (sortBy === "date") {
+        return new Date(a.event.startAt).getTime() - new Date(b.event.startAt).getTime();
+      } else {
+        // Sort by milestone (nearest upcoming milestone first)
+        // For now, fallback to date sorting
+        return new Date(a.event.startAt).getTime() - new Date(b.event.startAt).getTime();
+      }
+    });
+
+    return sorted;
+  }, [plans, activeTab, sortBy]);
+
+  // Group by month
+  const groupedPlans = useMemo(() => {
+    const groups: Record<string, PlanItem[]> = {};
+
+    filteredAndSortedPlans.forEach((plan) => {
+      if (!plan.event) return;
+
+      const date = new Date(plan.event.startAt);
+      const monthKey = new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", {
+        month: "long",
+        year: "numeric",
+      }).format(date);
+
+      if (!groups[monthKey]) {
+        groups[monthKey] = [];
+      }
+      groups[monthKey].push(plan);
+    });
+
+    return groups;
+  }, [filteredAndSortedPlans, locale]);
+
+  // Calculate stats for subtitle
+  const stats = useMemo(() => {
+    if (!plans) return { upcoming: 0, pending: 0 };
+
+    const upcoming = plans.filter(
+      (p) => (p.state === "Active" || p.state === "Registered") && p.event
+    ).length;
+    const pending = plans.filter((p) => p.state === "Active" && p.event).length;
+
+    return { upcoming, pending };
+  }, [plans]);
+
+  // Generate subtitle
+  const subtitle = useMemo(() => {
+    if (stats.upcoming === 0 && stats.pending === 0) {
+      return t("plan.subtitleNone");
+    }
+    if (stats.pending === 0) {
+      return t("plan.subtitleNoPending", { upcoming: stats.upcoming });
+    }
+    if (stats.upcoming === stats.pending) {
+      return t("plan.subtitleOnlyPending", { pending: stats.pending });
+    }
+    return t("plan.subtitle", {
+      upcoming: stats.upcoming,
+      pending: stats.pending,
+    });
+  }, [stats, t]);
+
+  // Loading state
   if (isLoading) {
-    return (
-      <div className="container-app space-y-6">
-        <Skeleton className="h-10 w-48" />
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-2xl border bg-card p-5">
-              <Skeleton className="mb-3 h-6 w-3/4" />
-              <Skeleton className="mb-2 h-4 w-1/2" />
-              <Skeleton className="h-4 w-1/3" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <PlanPageSkeleton />;
   }
 
-  return (
-    <div className="container-app space-y-6">
-      <PageHeader title={t("plan.title")} />
-
-      {!plans || plans.length === 0 ? (
+  // Error state
+  if (error) {
+    return (
+      <div className="container-app max-w-6xl">
         <EmptyState
-          variant="plan"
+          icon={Flag}
           title={t("plan.emptyTitle")}
           description={t("plan.emptyDesc")}
           action={{
@@ -169,211 +241,116 @@ function PlanPageContent() {
             onClick: () => router.push("/"),
           }}
         />
+      </div>
+    );
+  }
+
+  // Empty state
+  if (!plans || plans.length === 0) {
+    return (
+      <div className="container-app max-w-6xl">
+        <PageHeader title={t("plan.title")} subtitle={subtitle} />
+        <EmptyState
+          icon={Flag}
+          title={t("plan.emptyTitle")}
+          description={t("plan.emptyDesc")}
+          action={{
+            label: t("nav.explore"),
+            onClick: () => router.push("/"),
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="container-app max-w-6xl">
+      {/* Header */}
+      <PageHeader title={t("plan.title")} subtitle={subtitle} />
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)} className="mb-6">
+        <TabsList>
+          <TabsTrigger value="upcoming">{t("plan.tabs.upcoming")}</TabsTrigger>
+          <TabsTrigger value="completed">{t("plan.tabs.completed")}</TabsTrigger>
+          <TabsTrigger value="all">{t("plan.tabs.all")}</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* Sort bar */}
+      {filteredAndSortedPlans.length > 0 && (
+        <div className="mb-6 flex items-center justify-end">
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortValue)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder={t("plan.sort.label")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date">{t("plan.sort.byDate")}</SelectItem>
+              <SelectItem value="milestone">{t("plan.sort.byMilestone")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Grouped plans */}
+      {filteredAndSortedPlans.length === 0 ? (
+        <EmptyState
+          icon={Flag}
+          title={
+            activeTab === "completed"
+              ? locale === "tr"
+                ? "Henüz tamamlanan etkinlik yok"
+                : "No completed events yet"
+              : locale === "tr"
+              ? "Yaklaşan etkinlik bulunmuyor"
+              : "No upcoming events"
+          }
+          description={
+            activeTab === "completed"
+              ? locale === "tr"
+                ? "Tamamladığın yarışlar burada görünecek."
+                : "Completed races will appear here."
+              : locale === "tr"
+              ? "Yaklaşan etkinlikler burada görünecek."
+              : "Upcoming events will appear here."
+          }
+          action={{
+            label: t("nav.explore"),
+            onClick: () => router.push("/"),
+          }}
+        />
       ) : (
-        <div className="space-y-4">
-          {plans.map((plan) => (
-            <PlanItemCard
-              key={plan.id}
-              plan={plan}
-              isExpanded={expandedId === plan.id}
-              isLoading={loadingActions[plan.id] || false}
-              onToggleExpand={() =>
-                setExpandedId(expandedId === plan.id ? null : plan.id)
-              }
-              onUpdateState={handleUpdateState}
-              onDelete={handleDelete}
-              formatDate={formatDate}
-              t={t}
-              locale={locale}
-            />
-          ))}
+        <div className="space-y-8">
+          {Object.entries(groupedPlans)
+            .sort(([a], [b]) => {
+              // Sort months chronologically
+              const dateA = new Date(a);
+              const dateB = new Date(b);
+              return dateA.getTime() - dateB.getTime();
+            })
+            .map(([month, monthPlans]) => (
+              <div key={month}>
+                <h2 className="mb-4 font-display text-xl font-semibold capitalize">
+                  {month}
+                </h2>
+                <div className="space-y-4">
+                  {monthPlans.map((plan) => (
+                    <PlanItemCard
+                      key={plan.id}
+                      plan={plan}
+                      isLoading={
+                        updateStateMutation.isPending || deleteMutation.isPending
+                      }
+                      onUpdateState={handleUpdateState}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
         </div>
       )}
     </div>
-  );
-}
-
-interface PlanItemCardProps {
-  plan: PlanItem;
-  isExpanded: boolean;
-  isLoading: boolean;
-  onToggleExpand: () => void;
-  onUpdateState: (id: string, state: "Registered" | "Completed") => void;
-  onDelete: (id: string) => void;
-  formatDate: (date: string) => string;
-  t: (key: string) => string;
-  locale: string;
-}
-
-function PlanItemCard({
-  plan,
-  isExpanded,
-  isLoading,
-  onToggleExpand,
-  onUpdateState,
-  onDelete,
-  formatDate,
-  t,
-  locale,
-}: PlanItemCardProps) {
-  const queryClient = useQueryClient();
-  const config = statusConfig[plan.state] || statusConfig.Active;
-  const StatusIcon = config.icon;
-
-  // Fetch milestones when expanded
-  const { data: milestones } = useQuery({
-    queryKey: ["event-milestones", plan.eventId],
-    queryFn: () => eventsApi.getMilestones(plan.eventId),
-    enabled: isExpanded,
-  });
-
-  const timelineMilestones: Milestone[] = (milestones || []).map((m) => {
-    const now = new Date();
-    const milestoneDate = new Date(m.date);
-    return {
-      id: m.id,
-      type: m.type,
-      label: m.label,
-      date: m.date,
-      description: m.description,
-      status:
-        milestoneDate < now
-          ? "completed"
-          : milestoneDate.toDateString() === now.toDateString()
-          ? "current"
-          : "upcoming",
-    };
-  });
-
-  // Get event info
-  const event = plan.event;
-  const distances: Distance[] = (event?.distances || []).filter((d): d is Distance =>
-    ["5K", "10K", "21K", "42K", "ultra"].includes(d)
-  );
-
-  return (
-    <article className="rounded-2xl border bg-card shadow-sm transition-all hover:shadow-md">
-      <div className="p-4 md:p-5">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          {/* Left content */}
-          <div className="flex-1 space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={config.variant} className="gap-1">
-                <StatusIcon className="h-3 w-3" />
-                {t(config.label)}
-              </Badge>
-              {distances.map((d) => (
-                <DistanceBadge key={d} distance={d} size="sm" />
-              ))}
-            </div>
-
-            <h3 className="text-lg font-semibold leading-tight">
-              {event?.title || "Event"}
-            </h3>
-
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-              {event && (
-                <>
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="h-4 w-4" />
-                    {event.city}, {event.countryCode}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4" />
-                    {formatDate(event.startAt)}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Right content - actions */}
-          <div className="flex flex-wrap items-center gap-2">
-            {plan.state === "Active" && event?.registrationUrl && (
-              <Button variant="accent" size="sm" asChild disabled={isLoading}>
-                <a
-                  href={event.registrationUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Also mark as registered when clicking
-                    onUpdateState(plan.id, "Registered");
-                  }}
-                  className="gap-1.5"
-                >
-                  {t("plan.markRegistered")}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </Button>
-            )}
-
-            {plan.state === "Registered" && (
-              <Button
-                variant="success"
-                size="sm"
-                onClick={() => onUpdateState(plan.id, "Completed")}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                )}
-                {t("plan.markCompleted")}
-              </Button>
-            )}
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggleExpand}
-            >
-              {t("event.milestones")}
-              {isExpanded ? (
-                <ChevronUp className="ml-1 h-4 w-4" />
-              ) : (
-                <ChevronDown className="ml-1 h-4 w-4" />
-              )}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => onDelete(plan.id)}
-              disabled={isLoading}
-              className="text-muted-foreground hover:text-destructive"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Expandable milestones */}
-      <div
-        className={cn(
-          "overflow-hidden border-t transition-all duration-300",
-          isExpanded ? "max-h-96" : "max-h-0 border-transparent"
-        )}
-      >
-        <div className="p-4 md:p-5">
-          {timelineMilestones.length > 0 ? (
-            <MilestoneTimeline milestones={timelineMilestones} />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {locale === "tr"
-                ? "Bu etkinlik için henüz milestone eklenmemiş."
-                : "No milestones added for this event yet."}
-            </p>
-          )}
-        </div>
-      </div>
-    </article>
   );
 }
 

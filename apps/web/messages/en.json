@@ -37,16 +37,43 @@
     "distance": "Distance",
     "registrationOpen": "Registration Open",
     "registrationClosed": "Registration Closed",
+    "registrationOpenSoon": "Registration Opens Soon",
     "upcoming": "Upcoming",
-    "past": "Past"
+    "past": "Past",
+    "description": "Description",
+    "venue": "Venue",
+    "timezone": "Timezone",
+    "visitWebsite": "Visit website",
+    "notFoundTitle": "Event not found",
+    "notFoundDesc": "The event you are looking for does not exist or may have been deleted.",
+    "forbiddenTitle": "You don't have access to this event in this tenant",
+    "forbiddenDesc": "You may need to select a different tenant to view this event."
   },
   "plan": {
     "title": "My Plan",
+    "subtitle": "{upcoming} upcoming events • {pending} pending registration",
+    "subtitleNoPending": "{upcoming} upcoming events",
+    "subtitleOnlyPending": "{pending} pending registration",
+    "subtitleNone": "No events in your plan yet",
     "emptyTitle": "No events in your plan yet",
     "emptyDesc": "Explore races and add one to your plan in one click.",
     "markRegistered": "Mark Registered",
     "markCompleted": "Mark Completed",
     "remove": "Remove",
+    "tabs": {
+      "upcoming": "Upcoming",
+      "completed": "Completed",
+      "all": "All"
+    },
+    "sort": {
+      "label": "Sort",
+      "byDate": "By date",
+      "byMilestone": "By important dates"
+    },
+    "countdown": "{days} days to race",
+    "nextImportantDate": "No important dates",
+    "details": "Details",
+    "registration": "Registration page",
     "status": {
       "planned": "Planned",
       "registered": "Registered",
@@ -106,7 +133,8 @@
     "created": "Created successfully",
     "deleted": "Deleted successfully",
     "error": "Something went wrong",
-    "copied": "Copied to clipboard"
+    "copied": "Copied to clipboard",
+    "alreadyInPlan": "Already in your plan"
   },
   "common": {
     "loading": "Loading...",

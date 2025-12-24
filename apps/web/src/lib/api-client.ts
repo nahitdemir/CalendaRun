@@ -270,10 +270,10 @@ export interface EventMilestone {
 export interface PlanItem {
   id: string;
   eventId: string;
-  userId: string;
-  tenantId: string;
-  state: "Active" | "Registered" | "Completed" | "Cancelled";
-  timezone: string;
+  userId?: string;
+  tenantId?: string;
+  state: "Active" | "Registered" | "Completed" | "Cancelled" | number; // Backend sends enum as number
+  timezone?: string;
   createdAt: string;
   event?: Event;
 }
