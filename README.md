@@ -30,7 +30,35 @@ pnpm --version            # pnpm 8+ (yoksa: npm install -g pnpm)
 dotnet ef --version       # dotnet-ef (yoksa: dotnet tool install -g dotnet-ef)
 ```
 
-### 🔧 Kurulum
+---
+
+## ⚡ Tek Komutla Başlat (Önerilen)
+
+```bash
+# Tüm sistemi başlat (Docker + Backend + Frontend)
+./scripts/start-all.sh
+
+# Fresh start (tüm verileri sil ve sıfırdan başla)
+./scripts/start-all.sh --fresh
+
+# Tüm servisleri durdur
+./scripts/start-all.sh --stop
+```
+
+Bu komut otomatik olarak:
+1. ✅ Docker altyapısını başlatır (Postgres, Redis, RabbitMQ, Keycloak, Mailhog)
+2. ✅ Keycloak'ın hazır olmasını bekler
+3. ✅ Database migration'larını uygular
+4. ✅ Frontend bağımlılıklarını yükler
+5. ✅ Tüm backend servislerini başlatır
+6. ✅ Frontend'i başlatır
+7. ✅ Erişim URL'lerini gösterir
+
+> **Not:** İlk çalıştırmada build süresi ~2-3 dakika sürebilir.
+
+---
+
+### 🔧 Manuel Kurulum (Alternatif)
 
 #### Adım 1: Ortam Değişkenlerini Hazırla
 
