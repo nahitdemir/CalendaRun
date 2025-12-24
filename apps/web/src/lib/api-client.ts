@@ -152,6 +152,16 @@ async function request<T>(
 
   // Handle errors
   if (!response.ok) {
+    // Handle 401 Unauthorized - clear token and redirect to login
+    if (response.status === 401) {
+      setStoredToken(null);
+      // Redirect to home page (which will show login)
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
+      }
+      throw new ApiError("Unauthorized", 401);
+    }
+
     const contentType = response.headers.get("Content-Type") || "";
 
     if (contentType.includes("application/problem+json") || contentType.includes("application/json")) {
