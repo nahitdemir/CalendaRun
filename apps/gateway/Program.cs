@@ -117,7 +117,26 @@ builder.Services.AddReverseProxy()
 // Add health checks
 builder.Services.AddHealthChecks();
 
+// Add CORS
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins(
+                "http://localhost:3000",  // Next.js dev
+                "http://localhost:3001",  // Alternative port
+                "http://127.0.0.1:3000"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
 var app = builder.Build();
+
+// CORS must be before authentication
+app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
