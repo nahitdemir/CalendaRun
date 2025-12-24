@@ -3,7 +3,7 @@ using Planning.Application.Common;
 namespace Planning.Application.Plans.Commands;
 
 public record CreatePlanCommand(
-    Guid TenantId,
+    Guid? TenantId, // Optional - null for public events
     Guid UserId,
     string UserEmail,
     Guid EventId,
@@ -12,7 +12,7 @@ public record CreatePlanCommand(
 
 public record CreatePlanResult(
     Guid PlanItemId,
-    Guid TenantId,
+    Guid? TenantId,
     Guid UserId,
     Guid EventId,
     string State,

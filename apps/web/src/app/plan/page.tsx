@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/empty-state";
 import { MilestoneTimeline, Milestone } from "@/components/milestone-timeline";
 import { DistanceBadge, Distance } from "@/components/distance-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TenantRequiredGuard } from "@/components/route-guards";
+import { AuthGuard } from "@/components/route-guards";
 import {
   Calendar,
   MapPin,
@@ -379,8 +379,8 @@ function PlanItemCard({
 
 export default function PlanPage() {
   return (
-    <TenantRequiredGuard>
+    <AuthGuard>
       <PlanPageContent />
-    </TenantRequiredGuard>
+    </AuthGuard>
   );
 }

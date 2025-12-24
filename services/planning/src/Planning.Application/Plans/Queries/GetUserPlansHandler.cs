@@ -15,10 +15,16 @@ public class GetUserPlansHandler : IQueryHandler<GetUserPlansQuery, Result<List<
 
     public async Task<Result<List<PlanDto>>> HandleAsync(GetUserPlansQuery query, CancellationToken ct = default)
     {
-        var plans = await _db.UserPlanItems
-            .Where(p => p.TenantId == query.TenantId && 
-                        p.UserId == query.UserId && 
-                        p.State == "Active")
+        var plansQuery = _db.UserPlanItems
+            .Where(p => p.UserId == query.UserId && p.State == "Active");
+
+        // Filter by tenant if provided
+        if (query.TenantId.HasValue)
+        {
+            plansQuery = plansQuery.Where(p => p.TenantId == query.TenantId.Value);
+        }
+
+        var plans = await plansQuery
             .OrderByDescending(p => p.CreatedAt)
             .Select(p => new PlanDto(
                 p.Id,

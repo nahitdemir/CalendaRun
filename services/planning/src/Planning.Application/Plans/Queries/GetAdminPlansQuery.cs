@@ -9,7 +9,7 @@ public record GetAdminPlansQuery(
 
 public record AdminPlanDto(
     Guid Id,
-    Guid TenantId,
+    Guid? TenantId,
     Guid UserId,
     string UserEmail,
     Guid EventId,

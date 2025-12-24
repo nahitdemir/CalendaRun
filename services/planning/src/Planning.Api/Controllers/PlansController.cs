@@ -33,15 +33,15 @@ public class PlansController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreatePlan([FromBody] CreatePlanRequest request, CancellationToken ct)
     {
-        var tenantId = GetTenantId();
+        var tenantId = GetTenantId(); // Optional - can be null for public events
         var userId = GetUserId();
         var userEmail = GetUserEmail();
 
-        if (!tenantId.HasValue || !userId.HasValue)
-            return BadRequest(new { error = "X-Tenant-Id and X-User-Id headers are required" });
+        if (!userId.HasValue)
+            return BadRequest(new { error = "X-User-Id header is required" });
 
         var command = new CreatePlanCommand(
-            tenantId.Value,
+            tenantId, // Now optional
             userId.Value,
             userEmail ?? "unknown@local",
             request.EventId,
@@ -58,14 +58,14 @@ public class PlansController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetPlans(CancellationToken ct)
     {
-        var tenantId = GetTenantId();
+        var tenantId = GetTenantId(); // Optional filter
         var userId = GetUserId();
 
-        if (!tenantId.HasValue || !userId.HasValue)
-            return BadRequest(new { error = "X-Tenant-Id and X-User-Id headers are required" });
+        if (!userId.HasValue)
+            return BadRequest(new { error = "X-User-Id header is required" });
 
         var result = await _getUserPlansHandler.HandleAsync(
-            new GetUserPlansQuery(tenantId.Value, userId.Value), ct);
+            new GetUserPlansQuery(tenantId, userId.Value), ct);
 
         return ToActionResult(result, Ok);
     }

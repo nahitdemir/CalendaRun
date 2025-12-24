@@ -9,7 +9,7 @@ public record GetAdminUsersQuery(
 
 public record AdminUserDto(
     Guid Id,
-    Guid TenantId,
+    Guid? TenantId,
     string Email,
     DateTimeOffset CreatedAt,
     int PlanCount

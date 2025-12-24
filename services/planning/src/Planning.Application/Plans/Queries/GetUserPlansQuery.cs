@@ -3,7 +3,7 @@ using Planning.Application.Common;
 namespace Planning.Application.Plans.Queries;
 
 public record GetUserPlansQuery(
-    Guid TenantId,
+    Guid? TenantId, // Optional filter - null returns all user's plans
     Guid UserId
 ) : IQuery<Result<List<PlanDto>>>;
 

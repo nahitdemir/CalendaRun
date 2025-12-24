@@ -3,7 +3,7 @@ namespace Planning.Domain;
 public class UserPlanItem
 {
     public Guid Id { get; set; }
-    public Guid TenantId { get; set; }
+    public Guid? TenantId { get; set; } // Nullable - plan can be for public events
     public Guid UserId { get; set; }
     public Guid EventId { get; set; }
     public string State { get; set; } = "Active";

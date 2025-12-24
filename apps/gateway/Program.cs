@@ -290,8 +290,12 @@ static bool IsUserSelfRoute(string path)
 {
     return path.StartsWith("/me/") ||
            path.StartsWith("/api/me/") ||
+           path == "/api/me" ||
            path == "/invites/accept" ||
-           path == "/api/invites/accept";
+           path == "/api/invites/accept" ||
+           // Plan is user-scoped, not tenant-scoped
+           path == "/api/plan" ||
+           path.StartsWith("/api/plan/");
 }
 
 static bool IsTenantScopedRoute(string path)
@@ -300,10 +304,7 @@ static bool IsTenantScopedRoute(string path)
     if (path.StartsWith("/admin/") || path.StartsWith("/api/admin/"))
         return true;
 
-    // API routes that are tenant-scoped
-    if (path.StartsWith("/api/plan") || path == "/plan" || path.StartsWith("/plan/"))
-        return true;
-
+    // Settings routes are tenant-scoped
     if (path.StartsWith("/api/settings") && !path.Contains("/super-admin/"))
         return true;
 
