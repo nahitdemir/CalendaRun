@@ -110,9 +110,42 @@ start_docker() {
   
   docker compose -f infra/docker-compose.yml up -d
   
-  print_step "Keycloak'ın hazır olması bekleniyor (60 saniye)..."
-  local max_wait=60
+  # Wait for PostgreSQL
+  print_step "PostgreSQL bağlantısı bekleniyor..."
+  local max_wait=30
   local waited=0
+  
+  while ! docker compose -f infra/docker-compose.yml exec -T postgres pg_isready -U calendarun >/dev/null 2>&1; do
+    if [ $waited -ge $max_wait ]; then
+      print_warning "PostgreSQL hala hazır değil, devam ediliyor..."
+      break
+    fi
+    sleep 1
+    waited=$((waited + 1))
+    echo -ne "\r  Bekleniyor... ${waited}s / ${max_wait}s"
+  done
+  echo ""
+  print_success "PostgreSQL hazır"
+  
+  # Wait for Redis
+  print_step "Redis bağlantısı bekleniyor..."
+  waited=0
+  while ! docker compose -f infra/docker-compose.yml exec -T redis redis-cli ping >/dev/null 2>&1; do
+    if [ $waited -ge $max_wait ]; then
+      print_warning "Redis hala hazır değil, devam ediliyor..."
+      break
+    fi
+    sleep 1
+    waited=$((waited + 1))
+    echo -ne "\r  Bekleniyor... ${waited}s / ${max_wait}s"
+  done
+  echo ""
+  print_success "Redis hazır"
+  
+  # Wait for Keycloak (takes longer)
+  print_step "Keycloak'ın hazır olması bekleniyor (90 saniye)..."
+  max_wait=90
+  waited=0
   
   while ! curl -sf http://localhost:8180/health/ready >/dev/null 2>&1; do
     if [ $waited -ge $max_wait ]; then
@@ -128,44 +161,45 @@ start_docker() {
   print_success "Docker altyapısı hazır"
 }
 
+# Build all services
+build_services() {
+  print_step "Backend servisleri derleniyor..."
+  
+  dotnet build CalendaRun.sln --configuration Release --verbosity quiet 2>/dev/null || \
+  dotnet build CalendaRun.sln --configuration Release
+  
+  print_success "Build tamamlandı"
+}
+
 # Run migrations
 run_migrations() {
   print_step "Database migration'ları uygulanıyor..."
   
-  # Platform
-  if [ -d "services/platform/src/Platform.Api" ]; then
+  # Platform - using DesignTimeDbContextFactory
+  if [ -d "services/platform/src/Platform.Infrastructure" ]; then
     echo "  → Platform DB..."
     dotnet ef database update \
       --project services/platform/src/Platform.Infrastructure \
       --startup-project services/platform/src/Platform.Api \
-      --no-build 2>/dev/null || \
-    dotnet ef database update \
-      --project services/platform/src/Platform.Infrastructure \
-      --startup-project services/platform/src/Platform.Api
+      2>&1 | grep -v "^The Entity Framework tools version" | grep -v "^An error occurred while accessing" || true
   fi
   
-  # Catalog
-  if [ -d "services/catalog/src/Catalog.Api" ]; then
+  # Catalog - using DesignTimeDbContextFactory
+  if [ -d "services/catalog/src/Catalog.Infrastructure" ]; then
     echo "  → Catalog DB..."
     dotnet ef database update \
       --project services/catalog/src/Catalog.Infrastructure \
       --startup-project services/catalog/src/Catalog.Api \
-      --no-build 2>/dev/null || \
-    dotnet ef database update \
-      --project services/catalog/src/Catalog.Infrastructure \
-      --startup-project services/catalog/src/Catalog.Api
+      2>&1 | grep -v "^The Entity Framework tools version" | grep -v "^An error occurred while accessing" || true
   fi
   
-  # Planning
-  if [ -d "services/planning/src/Planning.Api" ]; then
+  # Planning - using DesignTimeDbContextFactory
+  if [ -d "services/planning/src/Planning.Infrastructure" ]; then
     echo "  → Planning DB..."
     dotnet ef database update \
       --project services/planning/src/Planning.Infrastructure \
       --startup-project services/planning/src/Planning.Api \
-      --no-build 2>/dev/null || \
-    dotnet ef database update \
-      --project services/planning/src/Planning.Infrastructure \
-      --startup-project services/planning/src/Planning.Api
+      2>&1 | grep -v "^The Entity Framework tools version" | grep -v "^An error occurred while accessing" || true
   fi
   
   print_success "Migration'lar tamamlandı"
@@ -303,6 +337,7 @@ main() {
   check_requirements
   stop_all 2>/dev/null || true
   start_docker
+  build_services
   run_migrations
   install_frontend
   start_services
