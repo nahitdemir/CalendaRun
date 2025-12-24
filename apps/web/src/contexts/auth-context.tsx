@@ -170,7 +170,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [getAccessToken]);
 
-  const isAuthenticated = !!user || status === "authenticated";
+  // Listen for unauthorized events from API client
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      console.log("Unauthorized event received, clearing auth state");
+      setUser(null);
+      setTenants([]);
+      setSelectedTenantState(null);
+      setDevTokenState(null);
+      // Don't call signOut here to avoid redirect loops
+      // Just clear local state and let user see login UI
+    };
+
+    window.addEventListener("auth:unauthorized", handleUnauthorized);
+    return () => {
+      window.removeEventListener("auth:unauthorized", handleUnauthorized);
+    };
+  }, []);
+
+  const isAuthenticated = !!user;
   const isSuperAdmin = user?.isSuperAdmin || user?.roles?.includes("super_admin") || false;
   const isTenantAdmin =
     selectedTenant?.role === "TenantAdmin" || isSuperAdmin;
