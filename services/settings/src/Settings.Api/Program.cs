@@ -1,7 +1,10 @@
 using System.Text.Json;
+using Calendarun.Common.Auth;
 using Calendarun.Contracts.Settings;
 using MassTransit;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Settings.Domain;
 using Settings.Infrastructure;
 using StackExchange.Redis;
@@ -34,6 +37,27 @@ builder.Services.AddSingleton<SettingsCacheService>(sp =>
     return new SettingsCacheService(redis, logger, env);
 });
 
+// ==================== AUTHENTICATION ====================
+var keycloakAuthority = builder.Configuration["Keycloak:Authority"] ?? "http://localhost:8180/realms/calendarun";
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = keycloakAuthority;
+        options.Audience = "calendarun-api";
+        options.RequireHttpsMetadata = false; // Dev only
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = keycloakAuthority,
+            ValidateAudience = false, // Gateway already validates audience
+            ValidateLifetime = true,
+            NameClaimType = CalendarunClaimTypes.PreferredUsername,
+            RoleClaimType = CalendarunClaimTypes.RealmRoles
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 // Add MassTransit
 builder.Services.AddMassTransit(x =>
 {
@@ -60,6 +84,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapHealthChecks("/health");
 

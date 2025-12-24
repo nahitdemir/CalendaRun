@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using Calendarun.Contracts.Planning;
 using Calendarun.Contracts.Settings;
 using Calendarun.Settings.Client;
@@ -51,8 +52,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             ValidateIssuer = true,
             ValidIssuer = keycloakAuthority,
-            ValidateAudience = false,
-            ValidateLifetime = true
+            ValidateAudience = false, // Gateway already validates audience
+            ValidateLifetime = true,
+            NameClaimType = CalendarunClaimTypes.PreferredUsername,
+            RoleClaimType = CalendarunClaimTypes.RealmRoles
         };
     });
 

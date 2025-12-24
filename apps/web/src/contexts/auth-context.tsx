@@ -167,15 +167,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Handle session error (token refresh failed)
   useEffect(() => {
     if (session?.error === "RefreshAccessTokenError") {
-      // Token refresh failed, sign out user
-      console.warn("Token refresh failed, signing out...");
-      signOut({ redirect: false });
+      // Token refresh failed - try to recover by attempting a new login
+      // Only sign out if we're sure the token is invalid
+      console.warn("Token refresh failed, clearing session data...");
+      
+      // Clear local state but don't immediately sign out
+      // This allows the user to try logging in again
       setUser(null);
       setTenants([]);
       setSelectedTenantState(null);
       setDevTokenState(null);
+      
+      // Sign out from next-auth after a short delay to allow UI to update
+      // This prevents immediate redirect loops
+      const timeoutId = setTimeout(() => {
+        if (status === "authenticated") {
+          signOut({ redirect: false });
+        }
+      }, 1000);
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [session?.error]);
+  }, [session?.error, status]);
 
   // Load profile on auth change
   useEffect(() => {

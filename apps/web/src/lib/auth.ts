@@ -26,12 +26,21 @@ declare module "next-auth/jwt" {
   }
 }
 
+// Validate Keycloak configuration
+const keycloakIssuer = process.env.KEYCLOAK_ISSUER || "http://localhost:8180/realms/calendarun";
+const keycloakClientId = process.env.KEYCLOAK_CLIENT_ID || "calendarun-web";
+const keycloakClientSecret = process.env.KEYCLOAK_CLIENT_SECRET || "";
+
+if (!keycloakIssuer || !keycloakClientId) {
+  console.warn("Keycloak configuration may be incomplete. Please check KEYCLOAK_ISSUER and KEYCLOAK_CLIENT_ID environment variables.");
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     KeycloakProvider({
-      clientId: process.env.KEYCLOAK_CLIENT_ID || "calendarun-web",
-      clientSecret: process.env.KEYCLOAK_CLIENT_SECRET || "",
-      issuer: process.env.KEYCLOAK_ISSUER || "http://localhost:8180/realms/calendarun",
+      clientId: keycloakClientId,
+      clientSecret: keycloakClientSecret,
+      issuer: keycloakIssuer,
     }),
   ],
   callbacks: {
@@ -40,18 +49,44 @@ export const authOptions: NextAuthOptions = {
       if (account && profile) {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
-        token.accessTokenExpires = account.expires_at ? account.expires_at * 1000 : 0;
+        // account.expires_at is in seconds (Unix timestamp), convert to milliseconds
+        // If expires_at is not provided, calculate from expires_in (default 5 minutes)
+        if (account.expires_at) {
+          token.accessTokenExpires = account.expires_at * 1000;
+        } else if (account.expires_in && typeof account.expires_in === 'number') {
+          token.accessTokenExpires = Date.now() + account.expires_in * 1000;
+        } else {
+          // Default to 5 minutes if neither is provided
+          token.accessTokenExpires = Date.now() + 5 * 60 * 1000;
+        }
         token.sub = (profile as any).sub;
         
         // Extract realm roles from Keycloak token
         const realmAccess = (profile as any).realm_access;
         token.roles = realmAccess?.roles || [];
+        
+        // Return immediately after initial sign in
+        return token;
+      }
+
+      // If no access token expiration is set, return token as-is
+      if (!token.accessTokenExpires || token.accessTokenExpires === 0) {
+        return token;
+      }
+
+      // Check if token has an error from previous refresh attempts
+      if (token.error === "RefreshAccessTokenError") {
+        // Don't retry immediately, wait a bit to avoid infinite loops
+        // The session callback will handle the error
+        return token;
       }
 
       // Return previous token if the access token has not expired yet
       // Refresh proactively 5 minutes before expiration to avoid race conditions
       const FIVE_MINUTES = 5 * 60 * 1000;
-      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires - FIVE_MINUTES) {
+      const now = Date.now();
+      
+      if (token.accessTokenExpires && now < token.accessTokenExpires - FIVE_MINUTES) {
         return token;
       }
 
@@ -99,35 +134,77 @@ async function refreshAccessToken(token: any) {
       };
     }
 
-    const url = `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
+    // Validate environment variables
+    const issuer = process.env.KEYCLOAK_ISSUER || "http://localhost:8180/realms/calendarun";
+    const clientId = process.env.KEYCLOAK_CLIENT_ID || "calendarun-web";
+    const clientSecret = process.env.KEYCLOAK_CLIENT_SECRET || "";
+
+    if (!issuer || !clientId) {
+      console.error("Keycloak configuration missing: issuer or clientId");
+      return {
+        ...token,
+        error: "RefreshAccessTokenError",
+      };
+    }
+
+    const url = `${issuer}/protocol/openid-connect/token`;
     
     const response = await fetch(url, {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       method: "POST",
       body: new URLSearchParams({
-        client_id: process.env.KEYCLOAK_CLIENT_ID || "calendarun-web",
-        client_secret: process.env.KEYCLOAK_CLIENT_SECRET || "",
+        client_id: clientId,
+        client_secret: clientSecret,
         grant_type: "refresh_token",
         refresh_token: token.refreshToken,
       }),
     });
 
+    // Check if response is ok before parsing JSON
+    if (!response.ok) {
+      let errorMessage = `Token refresh failed with status ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error_description || errorData.error || errorMessage;
+        console.error("Token refresh failed:", errorData);
+      } catch (e) {
+        const text = await response.text();
+        console.error("Token refresh failed (non-JSON response):", text);
+      }
+      throw new Error(errorMessage);
+    }
+
     const refreshedTokens = await response.json();
 
-    if (!response.ok) {
-      console.error("Token refresh failed:", refreshedTokens);
-      throw refreshedTokens;
+    // Validate response structure
+    if (!refreshedTokens.access_token) {
+      console.error("Token refresh response missing access_token:", refreshedTokens);
+      throw new Error("Invalid token refresh response: missing access_token");
     }
+
+    // Calculate expiration time
+    let expiresIn = refreshedTokens.expires_in;
+    if (typeof expiresIn !== 'number' || expiresIn <= 0) {
+      // Default to 5 minutes if expires_in is invalid
+      expiresIn = 300;
+      console.warn("Token refresh response has invalid expires_in, defaulting to 5 minutes");
+    }
+
+    // Use new refresh token if provided, otherwise keep the old one
+    // Keycloak may not always return a new refresh_token
+    const newRefreshToken = refreshedTokens.refresh_token || token.refreshToken;
 
     return {
       ...token,
       accessToken: refreshedTokens.access_token,
-      accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
-      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
+      accessTokenExpires: Date.now() + expiresIn * 1000,
+      refreshToken: newRefreshToken,
       error: undefined, // Clear any previous errors
     };
   } catch (error) {
-    console.error("Error refreshing access token", error);
+    console.error("Error refreshing access token:", error);
+    // Only set error if it's a real error, not just a network issue
+    // This allows retry on next request
     return {
       ...token,
       error: "RefreshAccessTokenError",

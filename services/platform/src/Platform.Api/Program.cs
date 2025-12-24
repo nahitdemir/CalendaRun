@@ -62,7 +62,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             ValidateIssuer = true,
             ValidIssuer = keycloakAuthority,
-            ValidateAudience = false,
+            ValidateAudience = false, // Gateway already validates audience
             ValidateLifetime = true,
             NameClaimType = CalendarunClaimTypes.PreferredUsername,
             RoleClaimType = CalendarunClaimTypes.RealmRoles
