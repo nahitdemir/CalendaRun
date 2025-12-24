@@ -3,8 +3,8 @@ namespace Notifications.Domain;
 public class NotificationJob
 {
     public Guid Id { get; set; }
+    public Guid? TenantId { get; set; }
     public Guid UserId { get; set; }
-    public string? TenantId { get; set; }
     public string EventType { get; set; } = string.Empty;
     public string PayloadJson { get; set; } = string.Empty;
     public NotificationChannel Channel { get; set; }
@@ -37,4 +37,3 @@ public enum NotificationJobStatus
     Failed,
     Cancelled
 }
-

@@ -1,40 +1,69 @@
-using System.Text.Json;
 using Calendarun.Contracts.Planning;
 using Calendarun.Contracts.Settings;
 using Calendarun.Settings.Client;
 using MassTransit;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Planning.Api;
-using Planning.Domain;
+using Planning.Application;
 using Planning.Infrastructure;
 using Serilog;
-using SerilogContext = Serilog.Context.LogContext;
+using Serilog.Sinks.SystemConsole.Themes;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Serilog
+// ==================== LOGGING ====================
 Log.Logger = new LoggerConfiguration()
     .Enrich.FromLogContext()
     .Enrich.WithMachineName()
     .Enrich.WithEnvironmentName()
     .Enrich.WithProperty("Service", "Planning.Api")
     .WriteTo.Console(outputTemplate: 
-        "[{Timestamp:HH:mm:ss} {Level:u3}] {Service} {CorrelationId} {PlanItemId} {Message:lj}{NewLine}{Exception}")
+        "[{Timestamp:HH:mm:ss} {Level:u3}] {Service} {CorrelationId} {PlanItemId} {Message:lj}{NewLine}{Exception}",
+        theme: AnsiConsoleTheme.Code)
     .CreateLogger();
 
 builder.Host.UseSerilog();
 
-// Configure Kestrel
+// ==================== KESTREL ====================
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
     serverOptions.ListenLocalhost(5201);
 });
 
-// Add services
+// ==================== SERVICES ====================
+
+// Controllers
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Add Settings Client
+// ==================== AUTHENTICATION ====================
+var keycloakAuthority = builder.Configuration["Keycloak:Authority"] ?? "http://localhost:8180/realms/calendarun";
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = keycloakAuthority;
+        options.Audience = "calendarun-api";
+        options.RequireHttpsMetadata = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = keycloakAuthority,
+            ValidateAudience = false,
+            ValidateLifetime = true
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// ==================== DATABASE ====================
+var connectionString = builder.Configuration.GetConnectionString("PlanningDb");
+builder.Services.AddDbContext<PlanningDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
+// ==================== SETTINGS CLIENT ====================
 builder.Services.AddSettingsClient(options =>
 {
     options.SettingsServiceUrl = builder.Configuration["SettingsService:Url"] ?? "http://localhost:5301";
@@ -47,12 +76,10 @@ builder.Services.AddSettingsClient(options =>
     };
 });
 
-// Add DbContext
-var connectionString = builder.Configuration.GetConnectionString("PlanningDb");
-builder.Services.AddDbContext<PlanningDbContext>(options =>
-    options.UseNpgsql(connectionString));
+// ==================== APPLICATION LAYER (CQRS) ====================
+builder.Services.AddApplication();
 
-// Add MassTransit
+// ==================== MASSTRANSIT ====================
 builder.Services.AddMassTransit(x =>
 {
     x.AddSettingsChangedConsumer("planning-api");
@@ -65,7 +92,6 @@ builder.Services.AddMassTransit(x =>
             h.Password("guest");
         });
 
-        // Set entity name for message routing
         cfg.Message<PlanningUserPlannedV1>(m => m.SetEntityName("planning.userplanned.v1"));
         cfg.Message<SettingsChangedV1>(m => m.SetEntityName("settings.changed.v1"));
 
@@ -73,134 +99,32 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
-// Add health checks
+// ==================== HEALTH CHECKS ====================
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString!, name: "postgres", tags: new[] { "db", "planning" })
     .AddRabbitMQ("amqp://guest:guest@localhost:5672", name: "rabbitmq", tags: new[] { "messaging" })
     .AddCheck<OutboxHealthCheck>("outbox", tags: new[] { "outbox", "planning" });
 
-// Add outbox processor
-builder.Services.AddHostedService<Planning.Api.OutboxProcessor>();
+// ==================== BACKGROUND SERVICES ====================
+builder.Services.AddHostedService<OutboxProcessor>();
 
+// ==================== BUILD APP ====================
 var app = builder.Build();
 
-// Add CorrelationId middleware
+// ==================== MIDDLEWARE ====================
 app.UseMiddleware<CorrelationIdMiddleware>();
 
-// Configure the HTTP request pipeline
+app.UseAuthentication();
+app.UseAuthorization();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// Health endpoint
+// ==================== ROUTES ====================
 app.MapHealthChecks("/health");
-
-// Plan endpoint
-app.MapPost("/plan", async (
-    CreatePlanRequest request,
-    PlanningDbContext db,
-    ISettingsClient settingsClient,
-    HttpContext httpContext,
-    ILogger<Program> logger,
-    CancellationToken ct) =>
-{
-    // Get or create user from X-Dev-User header
-    var userEmail = httpContext.Request.Headers["X-Dev-User"].FirstOrDefault() ?? "dev@local";
-    
-    var user = await db.Users.FirstOrDefaultAsync(u => u.Email == userEmail, ct);
-    if (user == null)
-    {
-        user = new User
-        {
-            Id = Guid.NewGuid(),
-            Email = userEmail,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-        db.Users.Add(user);
-        await db.SaveChangesAsync(ct);
-    }
-
-    // Check max plans per user (from settings)
-    var maxPlans = await settingsClient.GetAsync<int?>("planning.max_plans_per_user", null, ct) ?? 100;
-    var currentPlanCount = await db.UserPlanItems.CountAsync(p => p.UserId == user.Id && p.State == "Active", ct);
-    
-    if (currentPlanCount >= maxPlans)
-    {
-        return Results.BadRequest(new { error = "Maximum plan limit reached", maxPlans, currentCount = currentPlanCount });
-    }
-
-    // Check if already planned
-    var existingPlan = await db.UserPlanItems
-        .FirstOrDefaultAsync(p => p.UserId == user.Id && p.EventId == request.EventId, ct);
-    
-    if (existingPlan != null)
-    {
-        return Results.Conflict(new { error = "Event already planned", planItemId = existingPlan.Id });
-    }
-
-    // Get timezone from settings
-    var timezone = await settingsClient.GetAsync<string>("planning.default_timezone", null, ct) ?? "Europe/Istanbul";
-
-    // Create plan item
-    var planItem = new UserPlanItem
-    {
-        Id = Guid.NewGuid(),
-        UserId = user.Id,
-        EventId = request.EventId,
-        State = "Active",
-        CreatedAt = DateTimeOffset.UtcNow
-    };
-
-    db.UserPlanItems.Add(planItem);
-    
-    // Enrich logs with PlanItemId
-    using (SerilogContext.PushProperty("PlanItemId", planItem.Id))
-    {
-    
-    // Add to outbox (transactional)
-    var eventMessage = new PlanningUserPlannedV1(
-        user.Id,
-        user.Email,
-        request.EventId,
-        planItem.Id,
-        timezone, // From settings
-        DateTimeOffset.UtcNow
-    );
-
-    var outboxMessage = new OutboxMessage
-    {
-        Id = Guid.NewGuid(),
-        Type = nameof(PlanningUserPlannedV1),
-        Payload = JsonSerializer.Serialize(eventMessage),
-        CreatedAt = DateTimeOffset.UtcNow
-    };
-
-    db.OutboxMessages.Add(outboxMessage);
-    
-    logger.LogInformation("💾 Writing to outbox... UserId={UserId} EventId={EventId} PlanItemId={PlanItemId} Timezone={Timezone}",
-        user.Id, request.EventId, planItem.Id, timezone);
-
-    await db.SaveChangesAsync(ct);
-    
-    logger.LogInformation("✅ Saved to outbox (will be published by background worker)");
-    
-    } // End LogContext
-
-    return Results.Created($"/plan/{planItem.Id}", new
-    {
-        planItemId = planItem.Id,
-        userId = user.Id,
-        eventId = request.EventId,
-        state = planItem.State,
-        createdAt = planItem.CreatedAt,
-        timezone
-    });
-})
-.WithName("CreatePlan")
-.WithOpenApi();
+app.MapControllers();
 
 app.Run();
-
-public record CreatePlanRequest(Guid EventId);

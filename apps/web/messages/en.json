@@ -1,0 +1,131 @@
+{
+  "nav": {
+    "explore": "Explore",
+    "plan": "My Plan",
+    "admin": "Admin",
+    "superAdmin": "Super Admin",
+    "backToExplore": "Back to Explore",
+    "selectTenant": "Select Tenant",
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "settings": "Settings",
+    "profile": "Profile"
+  },
+  "explore": {
+    "title": "Plan your races.",
+    "subtitle": "Never miss registrations. Add to your calendar, get reminders."
+  },
+  "filters": {
+    "city": "City",
+    "from": "From",
+    "to": "To",
+    "distance": "Distance",
+    "apply": "Apply",
+    "clear": "Clear",
+    "allCities": "All Cities",
+    "allDistances": "All Distances"
+  },
+  "event": {
+    "view": "View Details",
+    "addToPlan": "Add to Plan",
+    "addToCalendar": "Add to Calendar",
+    "registration": "Registration",
+    "organizer": "Organizer",
+    "milestones": "Key Dates",
+    "date": "Date",
+    "location": "Location",
+    "distance": "Distance",
+    "registrationOpen": "Registration Open",
+    "registrationClosed": "Registration Closed",
+    "upcoming": "Upcoming",
+    "past": "Past"
+  },
+  "plan": {
+    "title": "My Plan",
+    "emptyTitle": "No events in your plan yet",
+    "emptyDesc": "Explore races and add one to your plan in one click.",
+    "markRegistered": "Mark Registered",
+    "markCompleted": "Mark Completed",
+    "remove": "Remove",
+    "status": {
+      "planned": "Planned",
+      "registered": "Registered",
+      "completed": "Completed"
+    }
+  },
+  "admin": {
+    "events": {
+      "title": "Event Management",
+      "create": "New Event",
+      "edit": "Edit",
+      "publish": "Publish",
+      "delete": "Delete",
+      "unpublish": "Unpublish"
+    },
+    "users": {
+      "title": "Users",
+      "invite": "Invite",
+      "role": "Role"
+    },
+    "audit": {
+      "title": "Audit Logs"
+    }
+  },
+  "super": {
+    "tenants": {
+      "title": "Tenants",
+      "create": "New Tenant",
+      "name": "Tenant Name",
+      "slug": "URL Slug",
+      "defaultLanguage": "Default Language",
+      "defaultCurrency": "Default Currency",
+      "status": "Status",
+      "members": "Members"
+    },
+    "events": {
+      "title": "All Events"
+    },
+    "audit": {
+      "title": "Global Audit"
+    }
+  },
+  "empty": {
+    "noEventsTitle": "No events found",
+    "noEventsDesc": "No events match your search criteria.",
+    "noPlanTitle": "Your plan is empty",
+    "noPlanDesc": "Start by adding races from the Explore page.",
+    "selectTenantTitle": "Select a tenant to continue",
+    "selectTenantDesc": "Choose a tenant before accessing admin tools.",
+    "noResultsTitle": "No results found",
+    "noResultsDesc": "Try different filters."
+  },
+  "toast": {
+    "addedToPlan": "Added to your plan",
+    "removedFromPlan": "Removed from your plan",
+    "updated": "Updated successfully",
+    "created": "Created successfully",
+    "deleted": "Deleted successfully",
+    "error": "Something went wrong",
+    "copied": "Copied to clipboard"
+  },
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "search": "Search",
+    "actions": "Actions",
+    "all": "All",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "distances": {
+    "5K": "5K",
+    "10K": "10K",
+    "21K": "Half Marathon",
+    "42K": "Marathon",
+    "ultra": "Ultra"
+  }
+}
+

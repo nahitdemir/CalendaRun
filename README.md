@@ -2,237 +2,426 @@
 
 Koşu ve outdoor etkinlikleri için planlama ve bildirim platformu.
 
-## 🚀 Hızlı Başlangıç
+## ✨ Özellikler
 
-### Gereksinimler
+- **Multi-tenant Architecture**: Her organizasyon kendi tenant'ında izole çalışır
+- **Keycloak Authentication**: OIDC tabanlı güvenli kimlik doğrulama
+- **Role-based Authorization**: super_admin, tenant_admin, tenant_user rolleri
+- **CQRS-lite Pattern**: Command/Query separation ile clean architecture
+- **Event-driven Architecture**: RabbitMQ ile asenkron iletişim
+- **Modern UI**: Sports-themed design system with i18n (TR/EN)
+- **Centralized Settings**: Dinamik ayar yönetimi ve cache invalidation
 
-- Docker & Docker Compose
-- .NET 8 SDK
-- Node.js 18+ & pnpm
-- dotnet-ef tool (`dotnet tool install -g dotnet-ef`)
+---
 
-### Tek Komutla Başlat
+## 🚀 Projeyi Çalıştırma (Adım Adım)
+
+### 📋 Gereksinimler
+
+Başlamadan önce şunların kurulu olduğundan emin ol:
 
 ```bash
-# 1. Ortam değişkenlerini kopyala
+# Versiyonları kontrol et
+docker --version          # Docker 20.0+
+docker compose version    # Docker Compose 2.0+
+dotnet --version          # .NET 8.0+
+node --version            # Node.js 18+
+pnpm --version            # pnpm 8+ (yoksa: npm install -g pnpm)
+dotnet ef --version       # dotnet-ef (yoksa: dotnet tool install -g dotnet-ef)
+```
+
+### 🔧 Kurulum
+
+#### Adım 1: Ortam Değişkenlerini Hazırla
+
+```bash
+cd CalendaRun
 cp infra/local.env.sample infra/local.env
-
-# 2. Altyapı + migration + seed
-./scripts/bootstrap.sh
-
-# 3. Tüm servisleri başlat
-./scripts/dev.sh
 ```
 
-### 🧪 Demo Test
+#### Adım 2: Docker Altyapısını Başlat
 
 ```bash
-# Events listesi
-curl http://localhost:5101/events | jq
+# PostgreSQL, Redis, RabbitMQ, Keycloak, Mailhog
+docker compose -f infra/docker-compose.yml up -d
 
-# Plan oluştur (email gönderilecek)
-curl -X POST http://localhost:5201/plan \
+# Servislerin hazır olmasını bekle (Keycloak ~30-60 saniye sürebilir)
+echo "Keycloak başlatılıyor, lütfen bekle..."
+sleep 45
+
+# Servislerin durumunu kontrol et
+docker compose -f infra/docker-compose.yml ps
+```
+
+Beklenen çıktı:
+```
+NAME                SERVICE       STATUS
+calendarun-db       postgres      running (healthy)
+calendarun-redis    redis         running
+calendarun-rabbit   rabbitmq      running
+calendarun-keycloak keycloak      running
+calendarun-mailhog  mailhog       running
+```
+
+#### Adım 3: Database Migration'ları Uygula
+
+```bash
+# Bootstrap script'i çalıştır (migration + seed data)
+chmod +x scripts/bootstrap.sh
+./scripts/bootstrap.sh
+```
+
+> **Not:** Eğer bootstrap.sh hata verirse, migration'ları manuel çalıştır:
+> ```bash
+> # Platform DB
+> cd services/platform/src/Platform.Api
+> dotnet ef database update --project ../Platform.Infrastructure
+> 
+> # Catalog DB
+> cd services/catalog/src/Catalog.Api
+> dotnet ef database update --project ../Catalog.Infrastructure
+> 
+> # Planning DB
+> cd services/planning/src/Planning.Api
+> dotnet ef database update --project ../Planning.Infrastructure
+> ```
+
+#### Adım 4: Backend Servisleri Başlat
+
+**5 ayrı terminal aç** ve her birinde bir servisi başlat:
+
+```bash
+# Terminal 1: Gateway (API Proxy)
+cd apps/gateway
+dotnet run
+# Beklenen: "Now listening on: http://localhost:8080"
+
+# Terminal 2: Platform API (Tenant & Users)
+cd services/platform/src/Platform.Api
+dotnet run
+# Beklenen: "Now listening on: http://localhost:5401"
+
+# Terminal 3: Catalog API (Events)
+cd services/catalog/src/Catalog.Api
+dotnet run
+# Beklenen: "Now listening on: http://localhost:5101"
+
+# Terminal 4: Planning API (User Plans)
+cd services/planning/src/Planning.Api
+dotnet run
+# Beklenen: "Now listening on: http://localhost:5201"
+
+# Terminal 5: Frontend
+cd apps/web
+pnpm install
+pnpm dev
+# Beklenen: "ready started server on http://localhost:3000"
+```
+
+#### Adım 5: Servisleri Doğrula
+
+```bash
+# Health check'ler
+curl http://localhost:5401/health  # Platform API
+curl http://localhost:5101/health  # Catalog API
+curl http://localhost:5201/health  # Planning API
+curl http://localhost:8080/health  # Gateway
+```
+
+---
+
+## 🌐 Erişim URL'leri
+
+| Servis | URL | Açıklama |
+|--------|-----|----------|
+| 🎨 **Web UI** | http://localhost:3000 | Next.js Frontend |
+| 🔐 **Keycloak** | http://localhost:8180 | Identity Provider |
+| 🚪 **Gateway** | http://localhost:8080 | API Gateway |
+| 📧 **Mailhog** | http://localhost:8025 | Email Test UI |
+| 🐰 **RabbitMQ** | http://localhost:15672 | Message Broker |
+
+---
+
+## 🔑 Giriş Yapma
+
+### Yöntem 1: Web UI ile (Keycloak OAuth)
+
+1. http://localhost:3000 adresine git
+2. **"Giriş Yap"** butonuna tıkla
+3. Keycloak login sayfasına yönlendirileceksin
+4. Test kullanıcılarından biriyle giriş yap:
+
+| Kullanıcı | Şifre | Rol | Yetkiler |
+|-----------|-------|-----|----------|
+| `super@calendarun.local` | `super123` | Super Admin | Tüm sistemı yönetir |
+| `admin@tenant1.local` | `admin123` | Tenant Admin | Firma etkinliklerini yönetir |
+| `demo@calendarun.local` | `demo123` | User | Etkinlikleri görür, plan yapar |
+
+### Yöntem 2: Dev Token ile (Geliştirme Modu)
+
+Eğer Keycloak OAuth çalışmıyorsa, manuel token ile giriş yapabilirsin:
+
+```bash
+# 1. Token al
+TOKEN=$(curl -s -X POST "http://localhost:8180/realms/calendarun/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=calendarun-web" \
+  -d "username=super@calendarun.local" \
+  -d "password=super123" | jq -r '.access_token')
+
+echo "Token alındı: ${TOKEN:0:50}..."
+```
+
+2. http://localhost:3000/settings/token adresine git
+3. Token'ı yapıştır ve "Token Kaydet" butonuna tıkla
+
+---
+
+## 📱 Web UI Kullanım Rehberi
+
+### Ana Sayfalar
+
+| Sayfa | URL | Açıklama |
+|-------|-----|----------|
+| **Keşfet** | `/` | Tüm yarış etkinliklerini listele ve filtrele |
+| **Etkinlik Detay** | `/events/{id}` | Etkinlik detayları, milestones, kayıt linki |
+| **Planım** | `/plan` | Planladığın yarışları takip et |
+| **Ayarlar** | `/settings` | Profil bilgileri |
+| **Dev Token** | `/settings/token` | Geliştirici token yönetimi |
+
+### Admin Sayfaları (Tenant Admin)
+
+| Sayfa | URL | Açıklama |
+|-------|-----|----------|
+| **Etkinlik Yönetimi** | `/admin/events` | Firma etkinliklerini oluştur/düzenle |
+| **Kullanıcılar** | `/admin/users` | Firma kullanıcılarını gör |
+| **Audit Log** | `/admin/audit` | Firma denetim kayıtları |
+
+### Super Admin Sayfaları
+
+| Sayfa | URL | Açıklama |
+|-------|-----|----------|
+| **Firmalar** | `/super-admin/tenants` | Tüm firmaları yönet |
+| **Tüm Etkinlikler** | `/super-admin/events` | Global etkinlik listesi |
+| **Global Audit** | `/super-admin/audit` | Tüm sistem denetim kayıtları |
+
+### Dil Değiştirme
+
+Sağ üst köşedeki 🌐 ikonuna tıklayarak **Türkçe/English** arasında geçiş yap.
+
+---
+
+## 🧪 API Test Örnekleri
+
+```bash
+# Token al
+TOKEN=$(curl -s -X POST "http://localhost:8180/realms/calendarun/protocol/openid-connect/token" \
+  -d "grant_type=password&client_id=calendarun-web&username=super@calendarun.local&password=super123" \
+  -H "Content-Type: application/x-www-form-urlencoded" | jq -r '.access_token')
+
+TENANT_ID="00000000-0000-0000-0000-000000000001"
+
+# Etkinlikleri listele
+curl -H "Authorization: Bearer $TOKEN" \
+     -H "X-Tenant-Id: $TENANT_ID" \
+     http://localhost:8080/api/events | jq
+
+# Firmaları listele (super admin)
+curl -H "Authorization: Bearer $TOKEN" \
+     http://localhost:8080/api/super-admin/tenants | jq
+
+# Plan oluştur
+curl -X POST http://localhost:8080/api/plan \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-Id: $TENANT_ID" \
   -H "Content-Type: application/json" \
-  -H "X-Dev-User: demo@calendarun.local" \
   -d '{"eventId":"22222222-2222-2222-2222-222222222222"}'
-
-# Gateway üzerinden
-curl http://localhost:8080/api/events | jq
 ```
 
-📧 **Mailhog'da email kontrol et:** http://localhost:8025
+---
 
-## 📐 Mimari
+## 🛠️ Sorun Giderme
+
+### Keycloak başlamıyor
+
+```bash
+# Keycloak loglarını kontrol et
+docker compose -f infra/docker-compose.yml logs keycloak
+
+# Keycloak'ı yeniden başlat
+docker compose -f infra/docker-compose.yml restart keycloak
+```
+
+### Database bağlantı hatası
+
+```bash
+# PostgreSQL çalışıyor mu kontrol et
+docker compose -f infra/docker-compose.yml ps postgres
+
+# Connection string'i kontrol et
+cat infra/local.env | grep POSTGRES
+```
+
+### Frontend 401 hatası
+
+1. Token'ın geçerli olduğundan emin ol
+2. http://localhost:3000/settings/token adresinden yeni token gir
+3. Tarayıcı localStorage'ı temizle: `localStorage.clear()`
+
+### Port çakışması
+
+```bash
+# Hangi portlar kullanılıyor kontrol et
+lsof -i :3000   # Frontend
+lsof -i :8080   # Gateway
+lsof -i :5401   # Platform API
+lsof -i :5101   # Catalog API
+lsof -i :5201   # Planning API
+```
+
+---
+
+## 🏢 Multi-Tenant Yapısı
+
+### Rol Hiyerarşisi
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                           Gateway (YARP)                            │
-│                          localhost:8080                             │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            │
-        ┌───────────────────┼───────────────────┐
-        │                   │                   │
-        ▼                   ▼                   ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│  Catalog.Api  │   │ Planning.Api  │   │ Settings.Api  │
-│  :5101        │   │  :5201        │   │   :5301       │
-└───────┬───────┘   └───────┬───────┘   └───────┬───────┘
-        │                   │                   │
-        ▼                   ▼                   ▼
-┌───────────────────────────────────────────────────────┐
-│                    PostgreSQL :55432                   │
-│    catalogdb    │   planningdb    │    settingsdb     │
-└───────────────────────────────────────────────────────┘
+super_admin (Global)
+├── Tüm tenant'ları görür/yönetir
+├── Yeni tenant oluşturur
+└── Global ayarları değiştirir
 
-                    ┌───────────────┐
-                    │  RabbitMQ     │
-                    │  :5672/:15672 │
-                    └───────┬───────┘
-                            │
-                            ▼
-              ┌─────────────────────────┐
-              │  Notifications.Worker   │
-              │  (Consumer + Dispatcher)│
-              └─────────────┬───────────┘
-                            │
-                            ▼
-                   ┌─────────────────┐
-                   │    Mailhog      │
-                   │   :1025/:8025   │
-                   └─────────────────┘
+tenant_admin (Firma Bazlı)
+├── Kendi firmasını yönetir
+├── Kullanıcı davet eder
+└── Etkinlik CRUD yapar
+
+tenant_user (Firma Bazlı)
+├── Etkinlikleri görür
+└── Kendi planlarını yönetir
 ```
+
+### Tenant Header
+
+Tüm tenant-scoped API isteklerinde `X-Tenant-Id` header'ı gereklidir:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+     -H "X-Tenant-Id: 00000000-0000-0000-0000-000000000001" \
+     http://localhost:8080/api/events
+```
+
+---
+
+## 📐 Sistem Mimarisi
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Next.js Frontend (:3000)                          │
+│                        Tailwind + shadcn/ui + i18n                          │
+└────────────────────────────────────┬────────────────────────────────────────┘
+                                     │
+┌────────────────────────────────────┴────────────────────────────────────────┐
+│                              Gateway (YARP)                                  │
+│                             localhost:8080                                   │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │  JWT Validation (Keycloak)  │  Tenant Validation (Platform API)     │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+└────────────────────────────────────┬────────────────────────────────────────┘
+                                     │
+         ┌───────────────────────────┼───────────────────────────┐
+         ▼                           ▼                           ▼
+┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
+│  Platform.Api   │         │  Catalog.Api    │         │  Planning.Api   │
+│  :5401          │         │  :5101          │         │  :5201          │
+│  • Tenants      │         │  • Events       │         │  • Plans        │
+│  • Memberships  │         │  • Audit Logs   │         │  • Users        │
+│  • Invites      │         │                 │         │  • Audit Logs   │
+└─────────────────┘         └─────────────────┘         └─────────────────┘
+         │                           │                           │
+         └───────────────────────────┴───────────────────────────┘
+                                     │
+                          ┌──────────┴──────────┐
+                          │  PostgreSQL :55432  │
+                          └─────────────────────┘
+```
+
+---
 
 ## 🗂️ Proje Yapısı
 
 ```
 CalendaRun/
 ├── apps/
-│   └── gateway/              # YARP Gateway
-├── building-blocks/
-│   ├── Common/               # Shared utilities (ProblemDetails, UseCase)
-│   ├── Contracts/            # Event contracts (v1 schemas)
-│   │   ├── Planning/
-│   │   ├── Settings/
-│   │   └── Notifications/
-│   └── Settings/             # Settings client library
+│   ├── gateway/                    # YARP API Gateway
+│   └── web/                        # Next.js Frontend
+│       ├── src/
+│       │   ├── app/                # App Router pages
+│       │   ├── components/         # UI components
+│       │   ├── contexts/           # React contexts (auth, locale)
+│       │   ├── hooks/              # Custom hooks
+│       │   └── lib/                # API client, utilities
+│       └── messages/               # i18n (tr.json, en.json)
 ├── services/
-│   ├── catalog/              # Event catalog service
-│   │   └── src/
-│   │       ├── Catalog.Api
-│   │       ├── Catalog.Application
-│   │       ├── Catalog.Domain
-│   │       └── Catalog.Infrastructure
-│   ├── planning/             # User planning service
-│   │   └── src/
-│   │       ├── Planning.Api
-│   │       ├── Planning.Application
-│   │       ├── Planning.Domain
-│   │       └── Planning.Infrastructure
-│   ├── notifications/        # Notification service
-│   │   └── src/
-│   │       ├── Notifications.Worker
-│   │       ├── Notifications.Application
-│   │       ├── Notifications.Domain
-│   │       └── Notifications.Infrastructure
-│   └── settings/             # Settings service
-│       └── src/
-│           ├── Settings.Api
-│           ├── Settings.Application
-│           ├── Settings.Domain
-│           └── Settings.Infrastructure
+│   ├── platform/                   # Tenant & Membership service
+│   ├── catalog/                    # Event catalog service
+│   ├── planning/                   # User planning service
+│   └── notifications/              # Notification worker
+├── building-blocks/
+│   ├── Common/                     # Shared utilities
+│   └── Contracts/                  # Event contracts
 ├── infra/
-│   ├── docker-compose.yml
-│   ├── local.env.sample
-│   └── postgres-init/
-└── scripts/
-    ├── bootstrap.sh
-    └── dev.sh
+│   ├── docker-compose.yml          # Docker services
+│   ├── keycloak/                   # Keycloak realm config
+│   └── local.env.sample            # Environment template
+├── scripts/
+│   ├── bootstrap.sh                # Initial setup
+│   └── dev.sh                      # Start all services
+└── tests/                          # Unit & Integration tests
 ```
 
-## 🔌 API Endpoints
+---
 
-### Catalog API (:5101)
+## 📝 Geliştirme
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | /health | Health check |
-| GET | /events | List all events |
+### Yeni Migration Oluştur
 
-### Planning API (:5201)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | /health | Health check |
-| POST | /plan | Create a plan (requires X-Dev-User header) |
-
-### Settings API (:5301)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | /health | Health check |
-| GET | /settings?keys=a,b&tenantId=... | Bulk get settings |
-| GET | /settings/{key}?tenantId=... | Get single setting |
-| PUT | /settings/{key}?tenantId=... | Update setting |
-| GET | /settings/version?tenantId=... | Get version |
-
-## 📨 Event Contracts
-
-### planning.userplanned.v1
-```json
-{
-  "userId": "guid",
-  "userEmail": "string",
-  "eventId": "guid",
-  "planItemId": "guid",
-  "timezone": "Europe/Istanbul",
-  "occurredAt": "2025-01-01T00:00:00Z"
-}
-```
-
-### settings.changed.v1
-```json
-{
-  "tenantId": "string|null",
-  "keys": ["string"],
-  "version": 1,
-  "occurredAt": "2025-01-01T00:00:00Z"
-}
-```
-
-## 🔧 Konfigürasyon (Settings)
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| notifications.smtp.host | localhost | SMTP host |
-| notifications.smtp.port | 1025 | SMTP port |
-| notifications.smtp.from | noreply@calendarun.local | From email |
-| notifications.email.subject_template | You planned event: {EventId} | Subject template |
-| notifications.email.body_template | ... | Body template |
-| notifications.reminder.offsets_minutes | [1440, 60, 15] | Reminder times |
-| notifications.dispatcher.max_attempts | 3 | Max retry attempts |
-| notifications.dispatcher.batch_size | 50 | Batch size |
-| planning.default_timezone | Europe/Istanbul | Default timezone |
-| planning.max_plans_per_user | 100 | Max plans per user |
-
-## 🌐 Useful URLs
-
-| Service | URL |
-|---------|-----|
-| Gateway | http://localhost:8080 |
-| Catalog API | http://localhost:5101 |
-| Planning API | http://localhost:5201 |
-| Settings API | http://localhost:5301 |
-| Mailhog | http://localhost:8025 |
-| RabbitMQ | http://localhost:15672 (guest/guest) |
-| Grafana | http://localhost:3000 |
-
-## 📝 Development
-
-### Migration oluştur
 ```bash
-dotnet ef migrations add MigrationName \
-  --project services/catalog/src/Catalog.Infrastructure \
-  --startup-project services/catalog/src/Catalog.Api
+cd services/platform/src/Platform.Api
+dotnet ef migrations add MigrationName --project ../Platform.Infrastructure
+dotnet ef database update --project ../Platform.Infrastructure
 ```
 
-### Migration uygula
+### Frontend Geliştirme
+
 ```bash
-dotnet ef database update \
-  --project services/catalog/src/Catalog.Infrastructure \
-  --startup-project services/catalog/src/Catalog.Api
+cd apps/web
+pnpm dev          # Development server
+pnpm build        # Production build
+pnpm lint         # ESLint check
 ```
+
+### Yeni i18n Key Ekleme
+
+1. `apps/web/messages/tr.json` ve `en.json` dosyalarına ekle
+2. Component'te `t("key.path")` ile kullan
+
+---
 
 ## 🧱 Tech Stack
 
-- **.NET 8** - API & Worker
-- **PostgreSQL 16** - Database
-- **Redis** - Cache
-- **RabbitMQ** - Message broker
-- **MassTransit** - Message bus abstraction
-- **Entity Framework Core** - ORM
-- **YARP** - Reverse proxy
-- **Serilog** - Structured logging
-- **Mailhog** - Email testing
+| Katman | Teknoloji |
+|--------|-----------|
+| **Frontend** | Next.js 14, TypeScript, Tailwind CSS, shadcn/ui |
+| **Backend** | .NET 8, ASP.NET Core, Entity Framework Core 8 |
+| **Database** | PostgreSQL 16 |
+| **Cache** | Redis |
+| **Message Broker** | RabbitMQ + MassTransit |
+| **Auth** | Keycloak (OIDC) |
+| **Gateway** | YARP |
+
+---
 
 ## 📄 License
 

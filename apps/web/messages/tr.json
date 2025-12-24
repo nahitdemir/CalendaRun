@@ -1,0 +1,131 @@
+{
+  "nav": {
+    "explore": "Keşfet",
+    "plan": "Planım",
+    "admin": "Yönetim",
+    "superAdmin": "Süper Admin",
+    "backToExplore": "Keşfet'e dön",
+    "selectTenant": "Firma Seç",
+    "signIn": "Giriş Yap",
+    "signOut": "Çıkış Yap",
+    "settings": "Ayarlar",
+    "profile": "Profil"
+  },
+  "explore": {
+    "title": "Koşularını planla.",
+    "subtitle": "Kayıt tarihlerini kaçırma. Takvimine ekle, hatırlatma al."
+  },
+  "filters": {
+    "city": "Şehir",
+    "from": "Başlangıç",
+    "to": "Bitiş",
+    "distance": "Mesafe",
+    "apply": "Uygula",
+    "clear": "Temizle",
+    "allCities": "Tüm Şehirler",
+    "allDistances": "Tüm Mesafeler"
+  },
+  "event": {
+    "view": "Detaylar",
+    "addToPlan": "Planıma Ekle",
+    "addToCalendar": "Takvime Ekle",
+    "registration": "Kayıt",
+    "organizer": "Organizatör",
+    "milestones": "Önemli Tarihler",
+    "date": "Tarih",
+    "location": "Konum",
+    "distance": "Mesafe",
+    "registrationOpen": "Kayıtlar Açık",
+    "registrationClosed": "Kayıtlar Kapandı",
+    "upcoming": "Yaklaşan",
+    "past": "Geçmiş"
+  },
+  "plan": {
+    "title": "Planım",
+    "emptyTitle": "Henüz planına etkinlik eklemedin",
+    "emptyDesc": "Keşfet'ten bir yarış seçip tek tıkla planına ekleyebilirsin.",
+    "markRegistered": "Kayıt Oldum",
+    "markCompleted": "Tamamladım",
+    "remove": "Kaldır",
+    "status": {
+      "planned": "Planlandı",
+      "registered": "Kayıtlı",
+      "completed": "Tamamlandı"
+    }
+  },
+  "admin": {
+    "events": {
+      "title": "Etkinlik Yönetimi",
+      "create": "Yeni Etkinlik",
+      "edit": "Düzenle",
+      "publish": "Yayınla",
+      "delete": "Sil",
+      "unpublish": "Yayından Kaldır"
+    },
+    "users": {
+      "title": "Kullanıcılar",
+      "invite": "Davet Et",
+      "role": "Rol"
+    },
+    "audit": {
+      "title": "Denetim Kayıtları"
+    }
+  },
+  "super": {
+    "tenants": {
+      "title": "Firmalar",
+      "create": "Yeni Firma",
+      "name": "Firma Adı",
+      "slug": "URL Kodu",
+      "defaultLanguage": "Varsayılan Dil",
+      "defaultCurrency": "Varsayılan Para Birimi",
+      "status": "Durum",
+      "members": "Üyeler"
+    },
+    "events": {
+      "title": "Tüm Etkinlikler"
+    },
+    "audit": {
+      "title": "Global Denetim"
+    }
+  },
+  "empty": {
+    "noEventsTitle": "Etkinlik bulunamadı",
+    "noEventsDesc": "Arama kriterlerinize uygun etkinlik bulunmuyor.",
+    "noPlanTitle": "Planınız boş",
+    "noPlanDesc": "Keşfet sayfasından yarış ekleyerek başlayın.",
+    "selectTenantTitle": "Devam etmek için firma seç",
+    "selectTenantDesc": "Admin işlemleri için önce bir firma seçmelisin.",
+    "noResultsTitle": "Sonuç bulunamadı",
+    "noResultsDesc": "Farklı filtreler deneyebilirsiniz."
+  },
+  "toast": {
+    "addedToPlan": "Planına eklendi",
+    "removedFromPlan": "Planından çıkarıldı",
+    "updated": "Güncellendi",
+    "created": "Oluşturuldu",
+    "deleted": "Silindi",
+    "error": "Bir hata oluştu",
+    "copied": "Kopyalandı"
+  },
+  "common": {
+    "loading": "Yükleniyor...",
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "confirm": "Onayla",
+    "search": "Ara",
+    "actions": "İşlemler",
+    "all": "Tümü",
+    "none": "Hiçbiri",
+    "yes": "Evet",
+    "no": "Hayır"
+  },
+  "distances": {
+    "5K": "5K",
+    "10K": "10K",
+    "21K": "Yarı Maraton",
+    "42K": "Maraton",
+    "ultra": "Ultra"
+  }
+}
+

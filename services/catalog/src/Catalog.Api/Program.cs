@@ -1,49 +1,84 @@
+using Catalog.Application;
 using Catalog.Infrastructure;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Serilog;
+using Serilog.Events;
+using Serilog.Sinks.SystemConsole.Themes;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel
+// ==================== LOGGING ====================
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .Enrich.WithProperty("Service", "Catalog.Api")
+    .WriteTo.Console(theme: AnsiConsoleTheme.Code)
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
+// ==================== KESTREL ====================
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
     serverOptions.ListenLocalhost(5101);
 });
 
-// Add services
+// ==================== SERVICES ====================
+
+// Controllers
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Add DbContext
+// Database
 var connectionString = builder.Configuration.GetConnectionString("CatalogDb");
 builder.Services.AddDbContext<CatalogDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// Add health checks
+// Application Layer (CQRS Handlers)
+builder.Services.AddApplication();
+
+// ==================== AUTHENTICATION ====================
+var keycloakAuthority = builder.Configuration["Keycloak:Authority"] ?? "http://localhost:8180/realms/calendarun";
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = keycloakAuthority;
+        options.Audience = "calendarun-api";
+        options.RequireHttpsMetadata = false; // Dev only
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = keycloakAuthority,
+            ValidateAudience = false,
+            ValidateLifetime = true
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// ==================== HEALTH CHECKS ====================
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString!, name: "postgres", tags: new[] { "db", "catalog" });
 
+// ==================== BUILD APP ====================
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
+// ==================== MIDDLEWARE ====================
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// Health endpoint
-app.MapHealthChecks("/health");
+app.UseAuthentication();
+app.UseAuthorization();
 
-// Events endpoint
-app.MapGet("/events", async (CatalogDbContext db, CancellationToken ct) =>
-{
-    var events = await db.Events
-        .OrderBy(e => e.StartAt)
-        .ToListAsync(ct);
-    
-    return Results.Ok(events);
-})
-.WithName("GetEvents")
-.WithOpenApi();
+// ==================== ROUTES ====================
+app.MapHealthChecks("/health");
+app.MapControllers();
 
 app.Run();

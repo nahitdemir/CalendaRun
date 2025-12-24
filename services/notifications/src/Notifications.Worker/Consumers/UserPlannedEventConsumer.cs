@@ -37,6 +37,7 @@ public class UserPlannedEventConsumer : IConsumer<PlanningUserPlannedV1>
         
         using (SerilogContext.PushProperty("PlanItemId", message.PlanItemId))
         using (SerilogContext.PushProperty("CorrelationId", messageId))
+        using (SerilogContext.PushProperty("TenantId", message.TenantId))
         {
             _logger.LogInformation("📥 Received PlanningUserPlannedV1: {@Message}, MessageId={MessageId}", message, messageId);
 
@@ -51,6 +52,7 @@ public class UserPlannedEventConsumer : IConsumer<PlanningUserPlannedV1>
             }
 
             var payloadJson = JsonSerializer.Serialize(message);
+            var tenantIdStr = message.TenantId?.ToString();
             
             // Create immediate email job
             var immediateJobKey = $"userplanned:email:{message.PlanItemId}";
@@ -62,11 +64,12 @@ public class UserPlannedEventConsumer : IConsumer<PlanningUserPlannedV1>
                 scheduledAt: DateTimeOffset.UtcNow,
                 idempotencyKey: immediateJobKey,
                 recipientEmail: message.UserEmail,
-                tenantId: null,
+                tenantId: message.TenantId,
+                tenantIdStr: tenantIdStr,
                 context.CancellationToken);
 
             // Create reminder jobs based on settings
-            var reminderOffsets = await _settingsClient.GetAsync<int[]>("notifications.reminder.offsets_minutes", null, context.CancellationToken);
+            var reminderOffsets = await _settingsClient.GetAsync<int[]>("notifications.reminder.offsets_minutes", tenantIdStr, context.CancellationToken);
             if (reminderOffsets != null && reminderOffsets.Length > 0)
             {
                 // For now, schedule reminders based on current time + offset
@@ -84,14 +87,15 @@ public class UserPlannedEventConsumer : IConsumer<PlanningUserPlannedV1>
                         scheduledAt: scheduledAt,
                         idempotencyKey: reminderKey,
                         recipientEmail: message.UserEmail,
-                        tenantId: null,
+                        tenantId: message.TenantId,
+                        tenantIdStr: tenantIdStr,
                         context.CancellationToken);
                     
                     _logger.LogInformation("📅 Scheduled reminder job: {Key} at {ScheduledAt}", reminderKey, scheduledAt);
                 }
             }
 
-            // Mark message as processed (Inbox)
+            // Mark message as processed
             _db.ProcessedMessages.Add(new ProcessedMessage
             {
                 MessageId = messageId,
@@ -113,7 +117,8 @@ public class UserPlannedEventConsumer : IConsumer<PlanningUserPlannedV1>
         DateTimeOffset scheduledAt,
         string idempotencyKey,
         string recipientEmail,
-        string? tenantId,
+        Guid? tenantId,
+        string? tenantIdStr,
         CancellationToken ct)
     {
         // Check if job already exists
@@ -127,7 +132,7 @@ public class UserPlannedEventConsumer : IConsumer<PlanningUserPlannedV1>
         }
 
         // Render template
-        var (subject, body) = await _templateRenderer.RenderAsync(eventType, payloadJson, tenantId, ct);
+        var (subject, body) = await _templateRenderer.RenderAsync(eventType, payloadJson, tenantIdStr, ct);
 
         var job = new NotificationJob
         {
@@ -152,4 +157,3 @@ public class UserPlannedEventConsumer : IConsumer<PlanningUserPlannedV1>
             job.Id, channel, scheduledAt);
     }
 }
-

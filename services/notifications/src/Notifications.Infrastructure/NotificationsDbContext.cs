@@ -14,6 +14,7 @@ public class NotificationsDbContext : DbContext
     public DbSet<DeliveryAttempt> DeliveryAttempts => Set<DeliveryAttempt>();
     public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -39,7 +40,6 @@ public class NotificationsDbContext : DbContext
             entity.Property(e => e.Channel).HasConversion<string>().HasMaxLength(20);
             entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
             entity.Property(e => e.IdempotencyKey).IsRequired().HasMaxLength(200);
-            entity.Property(e => e.TenantId).HasMaxLength(100);
             entity.Property(e => e.RecipientAddress).HasMaxLength(500);
             entity.Property(e => e.Subject).HasMaxLength(500);
             
@@ -47,6 +47,9 @@ public class NotificationsDbContext : DbContext
             entity.HasIndex(e => new { e.Status, e.ScheduledAt });
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.CreatedAt);
+            // Tenant isolation index
+            entity.HasIndex(e => e.TenantId);
+            entity.HasIndex(e => new { e.TenantId, e.Status });
         });
 
         // DeliveryAttempt
@@ -83,6 +86,22 @@ public class NotificationsDbContext : DbContext
             entity.Property(e => e.Payload).IsRequired();
             entity.Property(e => e.Error).HasMaxLength(2000);
             entity.HasIndex(e => new { e.ProcessedAt, e.CreatedAt });
+        });
+
+        // AuditLog
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Action).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.EntityType).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.ActorEmail).HasMaxLength(256);
+            entity.Property(e => e.BeforeJson).HasColumnType("jsonb");
+            entity.Property(e => e.AfterJson).HasColumnType("jsonb");
+            entity.Property(e => e.TraceId).HasMaxLength(100);
+            entity.Property(e => e.IpAddress).HasMaxLength(50);
+            
+            entity.HasIndex(e => new { e.TenantId, e.Timestamp });
+            entity.HasIndex(e => new { e.ActorUserId, e.Timestamp });
         });
     }
 }

@@ -30,13 +30,14 @@ public class EmailSender : IChannelSender
     public async Task<ChannelSendResult> SendAsync(NotificationJob job, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
+        var tenantIdStr = job.TenantId?.ToString();
         
         try
         {
-            // Get SMTP settings from settings service
-            var smtpHost = await _settingsClient.GetAsync<string>("notifications.smtp.host", job.TenantId, ct) ?? DefaultSmtpHost;
-            var smtpPort = await _settingsClient.GetAsync<int?>("notifications.smtp.port", job.TenantId, ct) ?? DefaultSmtpPort;
-            var fromEmail = await _settingsClient.GetAsync<string>("notifications.smtp.from", job.TenantId, ct) ?? DefaultFromEmail;
+            // Get SMTP settings from settings service (tenant-aware)
+            var smtpHost = await _settingsClient.GetAsync<string>("notifications.smtp.host", tenantIdStr, ct) ?? DefaultSmtpHost;
+            var smtpPort = await _settingsClient.GetAsync<int?>("notifications.smtp.port", tenantIdStr, ct) ?? DefaultSmtpPort;
+            var fromEmail = await _settingsClient.GetAsync<string>("notifications.smtp.from", tenantIdStr, ct) ?? DefaultFromEmail;
 
             if (string.IsNullOrEmpty(job.RecipientAddress))
             {
@@ -74,4 +75,3 @@ public class EmailSender : IChannelSender
         }
     }
 }
-

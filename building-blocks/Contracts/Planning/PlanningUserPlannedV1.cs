@@ -7,7 +7,7 @@ namespace Calendarun.Contracts.Planning;
 /// Consumers: Notifications.Worker
 /// </summary>
 /// <remarks>
-/// Schema Version: 1.0
+/// Schema Version: 1.1 - Added TenantId for multi-tenant support
 /// Breaking changes require new version (v2)
 /// </remarks>
 public record PlanningUserPlannedV1(
@@ -27,10 +27,12 @@ public record PlanningUserPlannedV1(
     string Timezone,
     
     /// <summary>When the plan was created</summary>
-    DateTimeOffset OccurredAt
+    DateTimeOffset OccurredAt,
+    
+    /// <summary>Tenant identifier for multi-tenant isolation</summary>
+    Guid? TenantId = null
 )
 {
     /// <summary>Exchange name for MassTransit routing</summary>
     public const string ExchangeName = "planning.userplanned.v1";
 }
-

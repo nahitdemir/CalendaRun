@@ -42,6 +42,18 @@ for i in {1..60}; do
   fi
 done
 
+echo "⏳ Waiting for Keycloak to be ready..."
+for i in {1..120}; do
+  if curl -sf http://localhost:8180/health/ready >/dev/null 2>&1; then
+    echo "✅ Keycloak is ready"
+    break
+  fi
+  sleep 2
+  if [ "$i" -eq 120 ]; then
+    echo "⚠️ Keycloak not ready after 240s (continuing anyway)"
+  fi
+done
+
 cd "$ROOT_DIR"
 
 echo "📦 Restoring .NET (if .sln exists)..."
@@ -78,6 +90,7 @@ apply_migration "services/catalog/src/Catalog.Infrastructure" "services/catalog/
 apply_migration "services/planning/src/Planning.Infrastructure" "services/planning/src/Planning.Api"
 apply_migration "services/notifications/src/Notifications.Infrastructure" "services/notifications/src/Notifications.Worker"
 apply_migration "services/settings/src/Settings.Infrastructure" "services/settings/src/Settings.Api"
+apply_migration "services/platform/src/Platform.Infrastructure" "services/platform/src/Platform.Api"
 
 echo "✅ Bootstrap complete."
 echo ""
@@ -85,6 +98,7 @@ echo "Next:"
 echo "  ./scripts/dev.sh"
 echo ""
 echo "Useful UIs:"
+echo "  Keycloak:  http://localhost:8180 (admin/admin)"
 echo "  Mailhog:   http://localhost:8025"
 echo "  RabbitMQ:  http://localhost:15672 (guest/guest)"
 echo "  Grafana:   http://localhost:3000"
@@ -94,3 +108,8 @@ echo "  Gateway:           http://localhost:8080"
 echo "  Catalog API:       http://localhost:5101"
 echo "  Planning API:      http://localhost:5201"
 echo "  Settings API:      http://localhost:5301"
+echo "  Platform API:      http://localhost:5401"
+echo ""
+echo "Test Users (Keycloak):"
+echo "  Super Admin: superadmin@calendarun.local / admin123"
+echo "  Demo User:   demo@calendarun.local / demo123"
