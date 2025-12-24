@@ -1,3 +1,4 @@
+using Calendarun.Common.Auth;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Platform.Domain.Entities;
