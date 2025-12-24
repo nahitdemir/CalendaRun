@@ -81,20 +81,48 @@ check_requirements() {
   print_success "Tüm gereksinimler mevcut"
 }
 
+# Check if port is in use
+check_port() {
+  local port=$1
+  if lsof -i :$port >/dev/null 2>&1; then
+    return 0  # Port in use
+  else
+    return 1  # Port free
+  fi
+}
+
+# Kill process on port
+kill_port() {
+  local port=$1
+  local pids=$(lsof -ti :$port 2>/dev/null || true)
+  if [ -n "$pids" ]; then
+    echo "$pids" | xargs kill -9 2>/dev/null || true
+    sleep 1
+  fi
+}
+
 # Stop all processes
 stop_all() {
   print_header "Servisleri Durdurma"
   
-  print_step "Docker container'ları durduruluyor..."
-  docker compose -f infra/docker-compose.yml down 2>/dev/null || true
-  
-  print_step "Arka plan process'leri durduruluyor..."
+  print_step "Backend process'leri durduruluyor..."
   pkill -f "dotnet.*Platform.Api" 2>/dev/null || true
   pkill -f "dotnet.*Catalog.Api" 2>/dev/null || true
   pkill -f "dotnet.*Planning.Api" 2>/dev/null || true
   pkill -f "dotnet.*Gateway" 2>/dev/null || true
   pkill -f "dotnet.*Settings.Api" 2>/dev/null || true
+  
+  print_step "Frontend process'i durduruluyor..."
   pkill -f "next-server" 2>/dev/null || true
+  pkill -f "next dev" 2>/dev/null || true
+  
+  # Kill specific ports if still in use
+  for port in 3000 8080 5101 5201 5301 5401; do
+    kill_port $port
+  done
+  
+  print_step "Docker container'ları durduruluyor..."
+  docker compose -f infra/docker-compose.yml --env-file infra/local.env down 2>/dev/null || true
   
   print_success "Tüm servisler durduruldu"
 }
@@ -108,52 +136,62 @@ start_docker() {
     docker compose -f infra/docker-compose.yml --env-file infra/local.env down -v 2>/dev/null || true
   fi
   
-  docker compose -f infra/docker-compose.yml --env-file infra/local.env up -d
+  # Start Docker with env file
+  docker compose -f infra/docker-compose.yml --env-file infra/local.env up -d 2>&1 | grep -v "is already in use" || true
   
   # Wait for PostgreSQL
   print_step "PostgreSQL bağlantısı bekleniyor..."
-  local max_wait=30
+  local max_wait=60
   local waited=0
   
-  while ! docker compose -f infra/docker-compose.yml --env-file infra/local.env exec -T postgres pg_isready -U calendarun >/dev/null 2>&1; do
+  while ! docker compose -f infra/docker-compose.yml --env-file infra/local.env exec -T postgres pg_isready -U postgres >/dev/null 2>&1; do
     if [ $waited -ge $max_wait ]; then
-      print_warning "PostgreSQL hala hazır değil, devam ediliyor..."
-      break
+      print_error "PostgreSQL başlatılamadı!"
+      exit 1
     fi
-    sleep 1
-    waited=$((waited + 1))
+    sleep 2
+    waited=$((waited + 2))
     echo -ne "\r  Bekleniyor... ${waited}s / ${max_wait}s"
   done
   echo ""
   print_success "PostgreSQL hazır"
   
+  # Create databases if they don't exist
+  print_step "Database'ler kontrol ediliyor..."
+  local dbs=("catalogdb" "planningdb" "platformdb" "settingsdb" "notificationsdb" "keycloakdb")
+  for db in "${dbs[@]}"; do
+    docker compose -f infra/docker-compose.yml --env-file infra/local.env exec -T postgres \
+      psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 || \
+      docker compose -f infra/docker-compose.yml --env-file infra/local.env exec -T postgres \
+      psql -U postgres -c "CREATE DATABASE $db;" 2>/dev/null || true
+  done
+  print_success "Database'ler hazır"
+  
   # Wait for Redis
   print_step "Redis bağlantısı bekleniyor..."
   waited=0
   while ! docker compose -f infra/docker-compose.yml --env-file infra/local.env exec -T redis redis-cli ping >/dev/null 2>&1; do
-    if [ $waited -ge $max_wait ]; then
+    if [ $waited -ge 30 ]; then
       print_warning "Redis hala hazır değil, devam ediliyor..."
       break
     fi
     sleep 1
     waited=$((waited + 1))
-    echo -ne "\r  Bekleniyor... ${waited}s / ${max_wait}s"
   done
-  echo ""
   print_success "Redis hazır"
   
-  # Wait for Keycloak (takes longer)
-  print_step "Keycloak'ın hazır olması bekleniyor (90 saniye)..."
-  max_wait=90
+  # Wait for Keycloak
+  print_step "Keycloak bağlantısı bekleniyor (bu biraz sürebilir)..."
   waited=0
+  max_wait=120
   
   while ! curl -sf http://localhost:8180/health/ready >/dev/null 2>&1; do
     if [ $waited -ge $max_wait ]; then
       print_warning "Keycloak hala hazır değil, devam ediliyor..."
       break
     fi
-    sleep 2
-    waited=$((waited + 2))
+    sleep 3
+    waited=$((waited + 3))
     echo -ne "\r  Bekleniyor... ${waited}s / ${max_wait}s"
   done
   echo ""
@@ -165,41 +203,47 @@ start_docker() {
 build_services() {
   print_step "Backend servisleri derleniyor..."
   
-  dotnet build CalendaRun.sln --configuration Release --verbosity quiet 2>/dev/null || \
-  dotnet build CalendaRun.sln --configuration Release
-  
-  print_success "Build tamamlandı"
+  if dotnet build CalendaRun.sln --configuration Release --verbosity quiet 2>/dev/null; then
+    print_success "Build tamamlandı"
+  else
+    print_warning "Release build başarısız, Debug deneniyor..."
+    dotnet build CalendaRun.sln --verbosity quiet || {
+      print_error "Build başarısız!"
+      exit 1
+    }
+    print_success "Build tamamlandı (Debug)"
+  fi
 }
 
 # Run migrations
 run_migrations() {
   print_step "Database migration'ları uygulanıyor..."
   
-  # Platform - using DesignTimeDbContextFactory
+  # Platform
   if [ -d "services/platform/src/Platform.Infrastructure" ]; then
     echo "  → Platform DB..."
     dotnet ef database update \
       --project services/platform/src/Platform.Infrastructure \
       --startup-project services/platform/src/Platform.Api \
-      2>&1 | grep -v "^The Entity Framework tools version" | grep -v "^An error occurred while accessing" || true
+      --no-build 2>&1 | grep -E "(Applying|Done|error)" || true
   fi
   
-  # Catalog - using DesignTimeDbContextFactory
+  # Catalog
   if [ -d "services/catalog/src/Catalog.Infrastructure" ]; then
     echo "  → Catalog DB..."
     dotnet ef database update \
       --project services/catalog/src/Catalog.Infrastructure \
       --startup-project services/catalog/src/Catalog.Api \
-      2>&1 | grep -v "^The Entity Framework tools version" | grep -v "^An error occurred while accessing" || true
+      --no-build 2>&1 | grep -E "(Applying|Done|error)" || true
   fi
   
-  # Planning - using DesignTimeDbContextFactory
+  # Planning
   if [ -d "services/planning/src/Planning.Infrastructure" ]; then
     echo "  → Planning DB..."
     dotnet ef database update \
       --project services/planning/src/Planning.Infrastructure \
       --startup-project services/planning/src/Planning.Api \
-      2>&1 | grep -v "^The Entity Framework tools version" | grep -v "^An error occurred while accessing" || true
+      --no-build 2>&1 | grep -E "(Applying|Done|error)" || true
   fi
   
   print_success "Migration'lar tamamlandı"
@@ -207,59 +251,103 @@ run_migrations() {
 
 # Install frontend dependencies
 install_frontend() {
-  print_step "Frontend bağımlılıkları kuruluyor..."
+  print_step "Frontend bağımlılıkları kontrol ediliyor..."
   
-  if [ -d "apps/web" ] && [ ! -d "apps/web/node_modules" ]; then
-    (cd apps/web && pnpm install --frozen-lockfile 2>/dev/null || pnpm install)
+  if [ -d "apps/web" ]; then
+    if [ ! -d "apps/web/node_modules" ]; then
+      print_step "Frontend bağımlılıkları yükleniyor..."
+      (cd apps/web && pnpm install --frozen-lockfile 2>/dev/null || pnpm install)
+    fi
+    print_success "Frontend hazır"
   fi
-  
-  print_success "Frontend hazır"
 }
 
 # Start all services
 start_services() {
-  print_step "Servisler başlatılıyor..."
+  print_step "Backend servisleri başlatılıyor..."
   
   # Create log directory
   mkdir -p .logs
   
-  # Start Platform API
+  # Start Platform API first (needed for membership validation)
   if [ -d "services/platform/src/Platform.Api" ]; then
     echo "  → Platform API (:5401)..."
-    dotnet run --project services/platform/src/Platform.Api --no-build > .logs/platform.log 2>&1 &
+    kill_port 5401
+    nohup dotnet run --project services/platform/src/Platform.Api --no-build --no-launch-profile > .logs/platform.log 2>&1 &
+    sleep 3
   fi
-  
-  # Wait for Platform API (needed for membership validation)
-  sleep 3
   
   # Start Catalog API
   if [ -d "services/catalog/src/Catalog.Api" ]; then
     echo "  → Catalog API (:5101)..."
-    dotnet run --project services/catalog/src/Catalog.Api --no-build > .logs/catalog.log 2>&1 &
+    kill_port 5101
+    nohup dotnet run --project services/catalog/src/Catalog.Api --no-build --no-launch-profile > .logs/catalog.log 2>&1 &
   fi
   
   # Start Planning API
   if [ -d "services/planning/src/Planning.Api" ]; then
     echo "  → Planning API (:5201)..."
-    dotnet run --project services/planning/src/Planning.Api --no-build > .logs/planning.log 2>&1 &
+    kill_port 5201
+    nohup dotnet run --project services/planning/src/Planning.Api --no-build --no-launch-profile > .logs/planning.log 2>&1 &
   fi
+  
+  # Wait for APIs to start
+  sleep 5
   
   # Start Gateway
   if [ -d "apps/gateway" ]; then
     echo "  → Gateway (:8080)..."
-    dotnet run --project apps/gateway --no-build > .logs/gateway.log 2>&1 &
+    kill_port 8080
+    nohup dotnet run --project apps/gateway --no-build --no-launch-profile > .logs/gateway.log 2>&1 &
   fi
   
-  # Wait for backend services
+  # Wait for Gateway
   sleep 3
+  
+  print_success "Backend servisleri başlatıldı"
   
   # Start Frontend
   if [ -d "apps/web" ]; then
-    echo "  → Frontend (:3000)..."
-    (cd apps/web && pnpm dev > ../../.logs/web.log 2>&1) &
+    print_step "Frontend başlatılıyor..."
+    kill_port 3000
+    (cd apps/web && nohup pnpm dev > ../../.logs/web.log 2>&1 &)
+    sleep 3
+    print_success "Frontend başlatıldı"
+  fi
+}
+
+# Verify services are running
+verify_services() {
+  print_step "Servisler kontrol ediliyor..."
+  
+  local all_ok=true
+  
+  # Check Gateway
+  if curl -sf http://localhost:8080/health >/dev/null 2>&1; then
+    echo -e "  ${GREEN}✓${NC} Gateway (:8080)"
+  else
+    echo -e "  ${RED}✗${NC} Gateway (:8080)"
+    all_ok=false
   fi
   
-  print_success "Tüm servisler başlatıldı"
+  # Check Frontend
+  sleep 2
+  if curl -sf http://localhost:3000 >/dev/null 2>&1; then
+    echo -e "  ${GREEN}✓${NC} Frontend (:3000)"
+  else
+    echo -e "  ${YELLOW}⋯${NC} Frontend (:3000) - başlatılıyor..."
+  fi
+  
+  # Check API endpoints
+  if curl -sf http://localhost:8080/api/events >/dev/null 2>&1; then
+    echo -e "  ${GREEN}✓${NC} Events API"
+  else
+    echo -e "  ${YELLOW}⋯${NC} Events API - başlatılıyor..."
+  fi
+  
+  if $all_ok; then
+    print_success "Tüm servisler çalışıyor"
+  fi
 }
 
 # Print URLs
@@ -277,6 +365,7 @@ print_urls() {
   
   echo -e "${BLUE}🔌 API Gateway${NC}"
   echo "   http://localhost:8080"
+  echo "   Health: http://localhost:8080/health"
   echo ""
   
   echo -e "${CYAN}📧 Mailhog${NC}"
@@ -286,6 +375,10 @@ print_urls() {
   echo -e "${CYAN}🐰 RabbitMQ${NC}"
   echo "   http://localhost:15672"
   echo "   User: guest / guest"
+  echo ""
+  
+  echo -e "${CYAN}📊 Grafana${NC}"
+  echo "   http://localhost:3001"
   echo ""
   
   echo -e "${GREEN}👤 Test Kullanıcıları${NC}"
@@ -299,10 +392,10 @@ print_urls() {
   echo ""
   
   echo -e "${YELLOW}📝 Logları görüntülemek için:${NC}"
-  echo "   tail -f .logs/platform.log"
-  echo "   tail -f .logs/catalog.log"
-  echo "   tail -f .logs/planning.log"
   echo "   tail -f .logs/gateway.log"
+  echo "   tail -f .logs/catalog.log"
+  echo "   tail -f .logs/platform.log"
+  echo "   tail -f .logs/planning.log"
   echo "   tail -f .logs/web.log"
   echo ""
   
@@ -317,7 +410,7 @@ wait_for_interrupt() {
   echo ""
   
   # Trap Ctrl+C
-  trap 'stop_all; exit 0' INT TERM
+  trap 'echo ""; stop_all; exit 0' INT TERM
   
   # Keep script running
   while true; do
@@ -341,9 +434,9 @@ main() {
   run_migrations
   install_frontend
   start_services
+  verify_services
   print_urls
   wait_for_interrupt
 }
 
 main
-
