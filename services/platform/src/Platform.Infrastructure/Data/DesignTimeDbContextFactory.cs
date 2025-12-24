@@ -14,7 +14,7 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<PlatformDb
         // Try to load from environment variable first, fallback to local dev defaults
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Postgres")
             ?? Environment.GetEnvironmentVariable("DATABASE_URL")
-            ?? "Host=localhost;Port=5432;Database=calendarun_platform;Username=calendarun;Password=calendarun";
+            ?? "Host=localhost;Port=55432;Database=platformdb;Username=postgres;Password=postgres";
 
         var optionsBuilder = new DbContextOptionsBuilder<PlatformDbContext>();
         optionsBuilder.UseNpgsql(connectionString, options =>
