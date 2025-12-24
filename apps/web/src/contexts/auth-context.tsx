@@ -103,9 +103,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       // Fetch profile and tenants in parallel
+      // Silently catch 401 errors (user not authenticated)
       const [profile, userTenants] = await Promise.all([
-        authApi.getMe().catch(() => null),
-        authApi.getMyTenants().catch(() => []),
+        authApi.getMe().catch((err) => {
+          // Only log non-401 errors
+          if (err instanceof ApiError && err.status !== 401) {
+            console.error("Failed to fetch profile:", err);
+          }
+          return null;
+        }),
+        authApi.getMyTenants().catch((err) => {
+          // Only log non-401 errors
+          if (err instanceof ApiError && err.status !== 401) {
+            console.error("Failed to fetch tenants:", err);
+          }
+          return [];
+        }),
       ]);
 
       if (profile) {
@@ -173,7 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Listen for unauthorized events from API client
   useEffect(() => {
     const handleUnauthorized = () => {
-      console.log("Unauthorized event received, clearing auth state");
+      // Silently clear auth state on 401 (user not logged in or token expired)
       setUser(null);
       setTenants([]);
       setSelectedTenantState(null);
