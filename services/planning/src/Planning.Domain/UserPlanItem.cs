@@ -6,7 +6,7 @@ public class UserPlanItem
     public Guid? TenantId { get; set; } // Nullable - plan can be for public events
     public Guid UserId { get; set; }
     public Guid EventId { get; set; }
-    public string State { get; set; } = "Active";
+    public PlanState State { get; set; } = PlanState.Active;
     public DateTimeOffset CreatedAt { get; set; }
     public Guid? CreatedBy { get; set; }
     

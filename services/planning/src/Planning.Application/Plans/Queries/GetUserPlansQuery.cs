@@ -1,4 +1,5 @@
 using Planning.Application.Common;
+using Planning.Domain;
 
 namespace Planning.Application.Plans.Queries;
 
@@ -10,7 +11,7 @@ public record GetUserPlansQuery(
 public record PlanDto(
     Guid Id,
     Guid EventId,
-    string State,
+    PlanState State,
     DateTimeOffset CreatedAt
 );
 

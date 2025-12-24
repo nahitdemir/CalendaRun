@@ -46,12 +46,12 @@ public class CreatePlanHandler : ICommandHandler<CreatePlanCommand, Result<Creat
         }
 
         // Check max plans per user (from settings, tenant-aware if tenant provided)
-        var tenantIdStr = command.TenantId?.ToString() ?? "global";
+        var tenantIdStr = command.TenantId?.ToString() ?? PlanningDefaults.GlobalSettingsKey;
         var maxPlans = await _settingsClient.GetAsync<int?>(
-            "planning.max_plans_per_user", tenantIdStr, ct) ?? 100;
+            PlanningDefaults.SettingsKeys.MaxPlansPerUser, tenantIdStr, ct) ?? PlanningDefaults.DefaultMaxPlansPerUser;
         
         var currentPlanCount = await _db.UserPlanItems.CountAsync(
-            p => p.TenantId == command.TenantId && p.UserId == user.Id && p.State == "Active", ct);
+            p => p.TenantId == command.TenantId && p.UserId == user.Id && p.State == PlanState.Active, ct);
 
         if (currentPlanCount >= maxPlans)
         {
@@ -73,7 +73,7 @@ public class CreatePlanHandler : ICommandHandler<CreatePlanCommand, Result<Creat
 
         // Get timezone from settings
         var timezone = await _settingsClient.GetAsync<string>(
-            "planning.default_timezone", tenantIdStr, ct) ?? "Europe/Istanbul";
+            PlanningDefaults.SettingsKeys.DefaultTimezone, tenantIdStr, ct) ?? PlanningDefaults.DefaultTimezone;
 
         // Create plan item
         var planItem = new UserPlanItem
@@ -82,7 +82,7 @@ public class CreatePlanHandler : ICommandHandler<CreatePlanCommand, Result<Creat
             TenantId = command.TenantId,
             UserId = user.Id,
             EventId = command.EventId,
-            State = "Active",
+            State = PlanState.Active,
             CreatedAt = DateTimeOffset.UtcNow,
             CreatedBy = command.UserId
         };

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Planning.Application.Common;
 using Planning.Application.Plans.Commands;
 using Planning.Application.Plans.Queries;
+using Planning.Domain;
 
 namespace Planning.Api.Controllers;
 
@@ -43,7 +44,7 @@ public class PlansController : ControllerBase
         var command = new CreatePlanCommand(
             tenantId, // Now optional
             userId.Value,
-            userEmail ?? "unknown@local",
+            userEmail ?? PlanningDefaults.UnknownUserEmail,
             request.EventId,
             HttpContext.TraceIdentifier
         );

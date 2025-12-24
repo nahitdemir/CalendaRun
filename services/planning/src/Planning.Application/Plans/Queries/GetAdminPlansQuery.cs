@@ -1,4 +1,5 @@
 using Planning.Application.Common;
+using Planning.Domain;
 
 namespace Planning.Application.Plans.Queries;
 
@@ -13,7 +14,7 @@ public record AdminPlanDto(
     Guid UserId,
     string UserEmail,
     Guid EventId,
-    string State,
+    PlanState State,
     DateTimeOffset CreatedAt,
     Guid? CreatedBy
 );

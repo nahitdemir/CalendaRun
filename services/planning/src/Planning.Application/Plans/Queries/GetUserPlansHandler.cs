@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Planning.Application.Common;
+using Planning.Domain;
 using Planning.Infrastructure;
 
 namespace Planning.Application.Plans.Queries;
@@ -16,7 +17,7 @@ public class GetUserPlansHandler : IQueryHandler<GetUserPlansQuery, Result<List<
     public async Task<Result<List<PlanDto>>> HandleAsync(GetUserPlansQuery query, CancellationToken ct = default)
     {
         var plansQuery = _db.UserPlanItems
-            .Where(p => p.UserId == query.UserId && p.State == "Active");
+            .Where(p => p.UserId == query.UserId && p.State == PlanState.Active);
 
         // Filter by tenant if provided
         if (query.TenantId.HasValue)

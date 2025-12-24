@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Planning.Application.Common;
+using Planning.Domain;
 using Planning.Infrastructure;
 
 namespace Planning.Application.Users.Queries;
@@ -32,7 +33,7 @@ public class GetAdminUsersHandler : IQueryHandler<GetAdminUsersQuery, Result<Lis
                 u.TenantId,
                 u.Email,
                 u.CreatedAt,
-                _db.UserPlanItems.Count(p => p.UserId == u.Id && p.State == "Active")
+                _db.UserPlanItems.Count(p => p.UserId == u.Id && p.State == PlanState.Active)
             ))
             .ToListAsync(ct);
 

@@ -1,4 +1,5 @@
 using Planning.Application.Common;
+using Planning.Domain;
 
 namespace Planning.Application.Plans.Commands;
 
@@ -15,7 +16,7 @@ public record CreatePlanResult(
     Guid? TenantId,
     Guid UserId,
     Guid EventId,
-    string State,
+    PlanState State,
     DateTimeOffset CreatedAt,
     string Timezone
 );
