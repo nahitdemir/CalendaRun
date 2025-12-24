@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
@@ -113,10 +113,12 @@ export default function ExplorePage() {
     return Array.from(new Set(events.map((e) => e.city))).sort();
   }, [events, cities]);
 
-  // Show error
-  if (eventsError) {
-    onError(eventsError);
-  }
+  // Show error only once when it changes
+  useEffect(() => {
+    if (eventsError) {
+      onError(eventsError);
+    }
+  }, [eventsError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Landing page for unauthenticated users
   if (!authLoading && !isAuthenticated) {
