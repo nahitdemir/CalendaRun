@@ -256,7 +256,7 @@ start_services() {
   # Start Frontend
   if [ -d "apps/web" ]; then
     echo "  → Frontend (:3000)..."
-    (cd apps/web && pnpm dev > ../.logs/web.log 2>&1) &
+    (cd apps/web && pnpm dev > ../../.logs/web.log 2>&1) &
   fi
   
   print_success "Tüm servisler başlatıldı"
