@@ -269,6 +269,9 @@ start_services() {
   # Create log directory
   mkdir -p .logs
   
+  # Set environment
+  export ASPNETCORE_ENVIRONMENT=Development
+  
   # Start Platform API first (needed for membership validation)
   if [ -d "services/platform/src/Platform.Api" ]; then
     echo "  → Platform API (:5401)..."
