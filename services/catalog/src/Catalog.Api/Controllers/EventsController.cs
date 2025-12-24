@@ -42,6 +42,27 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
+    /// Get distinct cities from events
+    /// </summary>
+    [HttpGet("cities")]
+    public async Task<IActionResult> GetCities(CancellationToken ct)
+    {
+        var tenantId = GetTenantId();
+        var result = await _getEventsHandler.HandleAsync(new GetEventsQuery(tenantId), ct);
+        
+        if (!result.IsSuccess)
+            return ToActionResult(result, _ => Ok());
+
+        var cities = result.Value!
+            .Select(e => e.City)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToList();
+
+        return Ok(cities);
+    }
+
+    /// <summary>
     /// Create event - requires authentication + tenant context
     /// </summary>
     [HttpPost]
