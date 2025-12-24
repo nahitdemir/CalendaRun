@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
@@ -131,9 +131,12 @@ function PlanPageContent() {
     }
   };
 
-  if (error) {
-    onError(error);
-  }
+  // Handle error in useEffect to avoid infinite loop
+  useEffect(() => {
+    if (error) {
+      onError(error);
+    }
+  }, [error, onError]);
 
   if (isLoading) {
     return (
