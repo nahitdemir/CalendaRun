@@ -187,7 +187,7 @@ public class RoleAuthorizationTests : IAsyncLifetime
             TenantId = _tenantId,
             ActorUserId = _adminUserId,
             Action = "MemberInvited",
-            Entity = "Invite",
+            EntityType = "Invite",
             EntityId = Guid.NewGuid(),
             AfterJson = "{\"email\":\"newuser@test.local\"}",
             Timestamp = now

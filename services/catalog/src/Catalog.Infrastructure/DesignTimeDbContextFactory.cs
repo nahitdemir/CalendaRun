@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using Microsoft.Extensions.Configuration;
 
 namespace Catalog.Infrastructure;
 
@@ -12,30 +11,10 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<CatalogDbC
 {
     public CatalogDbContext CreateDbContext(string[] args)
     {
-        // Try to load from environment variable first
+        // Try to load from environment variable first, fallback to local dev defaults
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Postgres")
-            ?? Environment.GetEnvironmentVariable("DATABASE_URL");
-
-        // Fallback to appsettings if not in environment
-        if (string.IsNullOrEmpty(connectionString))
-        {
-            // Look for appsettings.json in the API project
-            var basePath = Path.Combine(Directory.GetCurrentDirectory(), "..", "Catalog.Api");
-            
-            if (Directory.Exists(basePath))
-            {
-                var configuration = new ConfigurationBuilder()
-                    .SetBasePath(basePath)
-                    .AddJsonFile("appsettings.json", optional: true)
-                    .AddJsonFile("appsettings.Development.json", optional: true)
-                    .Build();
-
-                connectionString = configuration.GetConnectionString("Postgres");
-            }
-        }
-
-        // Ultimate fallback for local development
-        connectionString ??= "Host=localhost;Port=5432;Database=calendarun_catalog;Username=calendarun;Password=calendarun";
+            ?? Environment.GetEnvironmentVariable("DATABASE_URL")
+            ?? "Host=localhost;Port=5432;Database=calendarun_catalog;Username=calendarun;Password=calendarun";
 
         var optionsBuilder = new DbContextOptionsBuilder<CatalogDbContext>();
         optionsBuilder.UseNpgsql(connectionString, options =>
@@ -46,4 +25,3 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<CatalogDbC
         return new CatalogDbContext(optionsBuilder.Options);
     }
 }
-
