@@ -1,4 +1,7 @@
 using Calendarun.Common.Auth;
+using Calendarun.Common.Errors;
+using Calendarun.Common.Http;
+using Calendarun.Common.Time;
 using Calendarun.Settings.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,8 +35,8 @@ public class AuditLogsController : ControllerBase
         [FromQuery] string? entityType,
         [FromQuery] string? action,
         [FromQuery] Guid? actorUserId,
-        [FromQuery] DateTimeOffset? from,
-        [FromQuery] DateTimeOffset? to,
+        [FromQuery] string? from,
+        [FromQuery] string? to,
         [FromQuery] int page = 1,
         [FromQuery] int? pageSize = null,
         CancellationToken ct = default)
@@ -45,14 +48,24 @@ public class AuditLogsController : ControllerBase
         var effectivePageSize = pageSize ?? await _settingsClient.GetAsync<int?>(
             AuditDefaults.SettingsKey, null, ct) ?? AuditDefaults.DefaultPageSize;
 
+        if (!DateQueryParser.TryParseDateFilter(from, "from", false, out var dateFrom, out var fromError))
+        {
+            return BadRequest(ProblemDetailsFactory.Create(400, fromError ?? "Invalid date format", HttpContext));
+        }
+
+        if (!DateQueryParser.TryParseDateFilter(to, "to", true, out var dateTo, out var toError))
+        {
+            return BadRequest(ProblemDetailsFactory.Create(400, toError ?? "Invalid date format", HttpContext));
+        }
+
         var query = new GetAuditLogsQuery(
             tenantId,
             IsSuperAdmin: true,
             entityType,
             action,
             actorUserId,
-            from,
-            to,
+            dateFrom,
+            dateTo,
             page,
             effectivePageSize
         );
@@ -69,8 +82,8 @@ public class AuditLogsController : ControllerBase
         [FromQuery] string? entityType,
         [FromQuery] string? action,
         [FromQuery] Guid? actorUserId,
-        [FromQuery] DateTimeOffset? from,
-        [FromQuery] DateTimeOffset? to,
+        [FromQuery] string? from,
+        [FromQuery] string? to,
         [FromQuery] int page = 1,
         [FromQuery] int? pageSize = null,
         CancellationToken ct = default)
@@ -84,12 +97,25 @@ public class AuditLogsController : ControllerBase
             return Forbid();
 
         if (!isSuperAdmin && !tenantId.HasValue)
-            return BadRequest(new { error = "X-Tenant-Id header is required" });
+            return BadRequest(ProblemDetailsFactory.Create(
+                400,
+                $"{HeaderNames.TenantId} header is required",
+                HttpContext));
 
         // Get page size from Settings if not provided (tenant-specific or global)
         var tenantIdStr = tenantId?.ToString();
         var effectivePageSize = pageSize ?? await _settingsClient.GetAsync<int?>(
             AuditDefaults.SettingsKey, tenantIdStr, ct) ?? AuditDefaults.DefaultPageSize;
+
+        if (!DateQueryParser.TryParseDateFilter(from, "from", false, out var adminDateFrom, out var adminFromError))
+        {
+            return BadRequest(ProblemDetailsFactory.Create(400, adminFromError ?? "Invalid date format", HttpContext));
+        }
+
+        if (!DateQueryParser.TryParseDateFilter(to, "to", true, out var adminDateTo, out var adminToError))
+        {
+            return BadRequest(ProblemDetailsFactory.Create(400, adminToError ?? "Invalid date format", HttpContext));
+        }
 
         var query = new GetAuditLogsQuery(
             tenantId,
@@ -97,8 +123,8 @@ public class AuditLogsController : ControllerBase
             entityType,
             action,
             actorUserId,
-            from,
-            to,
+            adminDateFrom,
+            adminDateTo,
             page,
             effectivePageSize
         );
@@ -158,13 +184,13 @@ public class AuditLogsController : ControllerBase
 
     private Guid? GetTenantIdFromHeader()
     {
-        var tenantIdHeader = Request.Headers["X-Tenant-Id"].FirstOrDefault();
+        var tenantIdHeader = Request.Headers[HeaderNames.TenantId].FirstOrDefault();
         return Guid.TryParse(tenantIdHeader, out var tenantId) ? tenantId : null;
     }
 
     private string? GetTenantRole()
     {
-        return Request.Headers["X-Tenant-Role"].FirstOrDefault();
+        return Request.Headers[HeaderNames.TenantRole].FirstOrDefault();
     }
 
     private bool IsSuperAdmin()
@@ -179,11 +205,10 @@ public class AuditLogsController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(new { error = result.Error }),
-            ResultErrorType.Forbidden => Forbid(),
-            ResultErrorType.Conflict => Conflict(new { error = result.Error }),
-            _ => BadRequest(new { error = result.Error })
+            ResultErrorType.NotFound => NotFound(ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
     }
 }
-
