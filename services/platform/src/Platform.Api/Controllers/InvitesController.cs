@@ -1,4 +1,6 @@
 using Calendarun.Common.Auth;
+using Calendarun.Common.Errors;
+using Calendarun.Common.Http;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Application.Common;
@@ -36,7 +38,10 @@ public class InvitesController : ControllerBase
     {
         var tenantId = GetTenantIdFromHeader();
         if (tenantId == null)
-            return BadRequest(new { error = "X-Tenant-Id header is required" });
+            return BadRequest(ProblemDetailsFactory.Create(
+                400,
+                $"{HeaderNames.TenantId} header is required",
+                HttpContext));
 
         // Check authorization
         if (!IsSuperAdmin())
@@ -93,7 +98,7 @@ public class InvitesController : ControllerBase
 
     private Guid? GetTenantIdFromHeader()
     {
-        var tenantIdHeader = Request.Headers["X-Tenant-Id"].FirstOrDefault();
+        var tenantIdHeader = Request.Headers[HeaderNames.TenantId].FirstOrDefault();
         return Guid.TryParse(tenantIdHeader, out var tenantId) ? tenantId : null;
     }
 
@@ -109,14 +114,13 @@ public class InvitesController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(new { error = result.Error }),
-            ResultErrorType.Forbidden => Forbid(),
-            ResultErrorType.Conflict => Conflict(new { error = result.Error }),
-            _ => BadRequest(new { error = result.Error })
+            ResultErrorType.NotFound => NotFound(ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
     }
 }
 
 public record CreateInviteRequest(string Email, TenantRole Role);
 public record AcceptInviteRequest(string Token);
-

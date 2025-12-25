@@ -24,7 +24,7 @@ public class GetAdminPlansHandler : IQueryHandler<GetAdminPlansQuery, Result<Lis
         if (!query.IsSuperAdmin)
         {
             if (!query.TenantId.HasValue)
-                return Result<List<AdminPlanDto>>.Failure("X-Tenant-Id header is required");
+                return Result<List<AdminPlanDto>>.Failure("Tenant ID is required");
 
             plansQuery = plansQuery.Where(p => p.TenantId == query.TenantId.Value);
         }
@@ -50,4 +50,3 @@ public class GetAdminPlansHandler : IQueryHandler<GetAdminPlansQuery, Result<Lis
         return Result<List<AdminPlanDto>>.Success(plans);
     }
 }
-

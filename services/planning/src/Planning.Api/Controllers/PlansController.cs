@@ -1,4 +1,6 @@
 using Calendarun.Common.Auth;
+using Calendarun.Common.Errors;
+using Calendarun.Common.Http;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Planning.Application.Common;
@@ -40,7 +42,10 @@ public class PlansController : ControllerBase
         var userEmail = GetUserEmail();
 
         if (!userId.HasValue)
-            return BadRequest(new { error = "X-User-Id header is required" });
+            return BadRequest(ProblemDetailsFactory.Create(
+                400,
+                $"{HeaderNames.UserId} header is required",
+                HttpContext));
 
         var command = new CreatePlanCommand(
             tenantId, // Now optional
@@ -64,7 +69,10 @@ public class PlansController : ControllerBase
         var userId = GetUserId();
 
         if (!userId.HasValue)
-            return BadRequest(new { error = "X-User-Id header is required" });
+            return BadRequest(ProblemDetailsFactory.Create(
+                400,
+                $"{HeaderNames.UserId} header is required",
+                HttpContext));
 
         var result = await _getUserPlansHandler.HandleAsync(
             new GetUserPlansQuery(tenantId, userId.Value), ct);
@@ -105,29 +113,29 @@ public class PlansController : ControllerBase
 
     private Guid? GetTenantId()
     {
-        var header = Request.Headers["X-Tenant-Id"].FirstOrDefault();
+        var header = Request.Headers[HeaderNames.TenantId].FirstOrDefault();
         return Guid.TryParse(header, out var id) ? id : null;
     }
 
     private Guid? GetUserId()
     {
-        var header = Request.Headers["X-User-Id"].FirstOrDefault();
+        var header = Request.Headers[HeaderNames.UserId].FirstOrDefault();
         return Guid.TryParse(header, out var id) ? id : null;
     }
 
     private string? GetUserEmail()
     {
-        return Request.Headers["X-User-Email"].FirstOrDefault();
+        return Request.Headers[HeaderNames.UserEmail].FirstOrDefault();
     }
 
     private string? GetTenantRole()
     {
-        return Request.Headers["X-Tenant-Role"].FirstOrDefault();
+        return Request.Headers[HeaderNames.TenantRole].FirstOrDefault();
     }
 
     private bool IsSuperAdmin()
     {
-        return Request.Headers["X-Is-Super-Admin"].FirstOrDefault() == "True";
+        return Request.Headers[HeaderNames.IsSuperAdmin].FirstOrDefault() == "True";
     }
 
     private IActionResult ToActionResult<T>(Result<T> result, Func<T, IActionResult> onSuccess)
@@ -137,10 +145,10 @@ public class PlansController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(new { error = result.Error }),
-            ResultErrorType.Forbidden => Forbid(),
-            ResultErrorType.Conflict => Conflict(new { error = result.Error }),
-            _ => BadRequest(new { error = result.Error })
+            ResultErrorType.NotFound => NotFound(ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
     }
 
@@ -151,13 +159,12 @@ public class PlansController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(new { error = result.Error }),
-            ResultErrorType.Forbidden => Forbid(),
-            ResultErrorType.Conflict => Conflict(new { error = result.Error }),
-            _ => BadRequest(new { error = result.Error })
+            ResultErrorType.NotFound => NotFound(ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
     }
 }
 
 public record CreatePlanRequest(Guid EventId);
-

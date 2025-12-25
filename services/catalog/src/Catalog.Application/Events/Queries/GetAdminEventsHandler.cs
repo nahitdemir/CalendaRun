@@ -24,7 +24,7 @@ public class GetAdminEventsHandler : IQueryHandler<GetAdminEventsQuery, Result<L
         if (!query.IsSuperAdmin)
         {
             if (!query.TenantId.HasValue)
-                return Result<List<AdminEventDto>>.Failure("X-Tenant-Id header is required");
+                return Result<List<AdminEventDto>>.Failure("Tenant ID is required");
 
             eventsQuery = eventsQuery.Where(e => e.TenantId == query.TenantId.Value);
         }
@@ -53,4 +53,3 @@ public class GetAdminEventsHandler : IQueryHandler<GetAdminEventsQuery, Result<L
         return Result<List<AdminEventDto>>.Success(events);
     }
 }
-

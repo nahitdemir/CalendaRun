@@ -27,7 +27,7 @@ public class DeletePlanHandler : ICommandHandler<DeletePlanCommand, Result>
         if (!command.IsSuperAdmin)
         {
             if (!command.TenantId.HasValue)
-                return Result.Failure("X-Tenant-Id header is required");
+                return Result.Failure("Tenant ID is required");
 
             if (planItem.TenantId != command.TenantId)
                 return Result.Forbidden();
@@ -67,4 +67,3 @@ public class DeletePlanHandler : ICommandHandler<DeletePlanCommand, Result>
         return Result.Success();
     }
 }
-
