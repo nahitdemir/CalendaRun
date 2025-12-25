@@ -357,8 +357,35 @@ export const settingsApi = {
 // --- Events (Public) ---
 
 export const eventsApi = {
-  list: (filters?: EventFilters) =>
-    api.get<Event[]>("/api/events", filters as Record<string, string | number | boolean | undefined>),
+  list: async (filters?: EventFilters): Promise<PagedResult<Event>> => {
+    // Map frontend filter names to backend query param names
+    const params: Record<string, string | number | boolean | undefined> = {};
+    if (filters?.city) params.city = filters.city;
+    if (filters?.dateFrom) params.from = filters.dateFrom;
+    if (filters?.dateTo) params.to = filters.dateTo;
+    if (filters?.distances) params.distanceKm = filters.distances; // Map distances -> distanceKm
+    if (filters?.page) params.page = filters.page;
+    if (filters?.pageSize) params.pageSize = filters.pageSize;
+    
+    // API returns either array or PagedResult - normalize to PagedResult
+    const response = await api.get<Event[] | PagedResult<Event>>("/api/events", params);
+    
+    // If response is an array, convert to PagedResult
+    if (Array.isArray(response)) {
+      const page = filters?.page || 1;
+      const pageSize = filters?.pageSize || 20;
+      return {
+        items: response,
+        totalCount: response.length,
+        page,
+        pageSize,
+        totalPages: Math.ceil(response.length / pageSize),
+      };
+    }
+    
+    // If response is already PagedResult, return as-is
+    return response;
+  },
 
   getById: (id: string) => api.get<Event>(`/api/events/${id}`),
 
@@ -433,4 +460,3 @@ export const superAdminApi = {
   listAllEvents: (params?: { tenantId?: string; page?: number; pageSize?: number }) =>
     api.get<PagedResult<Event>>("/api/super-admin/events", params as Record<string, string | number | boolean | undefined>),
 };
-

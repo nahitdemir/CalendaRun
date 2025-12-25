@@ -1,5 +1,8 @@
 using Calendarun.Common.Auth;
+using Calendarun.Common.Errors;
+using Calendarun.Common.Http;
 using Catalog.Application.Common;
+using Calendarun.Common.Time;
 using Catalog.Application.Events.Commands;
 using Catalog.Application.Events.Queries;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +14,7 @@ namespace Catalog.Api.Controllers;
 [Route("events")]
 public class EventsController : ControllerBase
 {
-    private readonly IQueryHandler<GetEventsQuery, Result<List<EventDto>>> _getEventsHandler;
+    private readonly IQueryHandler<GetEventsQuery, Result<EventsPagedResult>> _getEventsHandler;
     private readonly IQueryHandler<GetEventByIdQuery, Result<EventDto>> _getEventByIdHandler;
     private readonly IQueryHandler<GetAdminEventsQuery, Result<List<AdminEventDto>>> _getAdminEventsHandler;
     private readonly ICommandHandler<CreateEventCommand, Result<CreateEventResult>> _createEventHandler;
@@ -19,7 +22,7 @@ public class EventsController : ControllerBase
     private readonly ICommandHandler<DeleteEventCommand, Result> _deleteEventHandler;
 
     public EventsController(
-        IQueryHandler<GetEventsQuery, Result<List<EventDto>>> getEventsHandler,
+        IQueryHandler<GetEventsQuery, Result<EventsPagedResult>> getEventsHandler,
         IQueryHandler<GetEventByIdQuery, Result<EventDto>> getEventByIdHandler,
         IQueryHandler<GetAdminEventsQuery, Result<List<AdminEventDto>>> getAdminEventsHandler,
         ICommandHandler<CreateEventCommand, Result<CreateEventResult>> createEventHandler,
@@ -35,14 +38,51 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// Get events - supports tenant filtering
+    /// Get events - supports tenant filtering and query parameters
+    /// Query params: city, from (ISO date), to (ISO date), distanceKm (comma-separated), page, pageSize
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetEvents(CancellationToken ct)
+    public async Task<IActionResult> GetEvents(
+        [FromQuery] string? city = null,
+        [FromQuery] string? from = null,
+        [FromQuery] string? to = null,
+        [FromQuery] string? distanceKm = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
     {
         var tenantId = GetTenantId();
-        var result = await _getEventsHandler.HandleAsync(new GetEventsQuery(tenantId), ct);
-        return ToActionResult(result, Ok);
+
+        // Parse date parameters - exact format: yyyy-MM-dd
+        DateTimeOffset? dateFrom = null;
+        DateTimeOffset? dateTo = null;
+
+        if (!DateQueryParser.TryParseDateFilter(from, "from", false, out dateFrom, out var fromError))
+        {
+            return BadRequest(ProblemDetailsFactory.Create(400, fromError ?? "Invalid date format", HttpContext));
+        }
+
+        if (!DateQueryParser.TryParseDateFilter(to, "to", true, out dateTo, out var toError))
+        {
+            return BadRequest(ProblemDetailsFactory.Create(400, toError ?? "Invalid date format", HttpContext));
+        }
+
+        // Validate pagination
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 20;
+
+        var query = new GetEventsQuery(
+            tenantId,
+            city,
+            dateFrom,
+            dateTo,
+            distanceKm,
+            page,
+            pageSize
+        );
+
+        var result = await _getEventsHandler.HandleAsync(query, ct);
+        return ToActionResult(result, pagedResult => Ok(pagedResult));
     }
 
     /// <summary>
@@ -66,10 +106,12 @@ public class EventsController : ControllerBase
         var result = await _getEventsHandler.HandleAsync(new GetEventsQuery(tenantId), ct);
         
         if (!result.IsSuccess)
-            return ToActionResult(result, _ => Ok());
+            return ToActionResult(result, _ => Ok(Array.Empty<string>()));
 
         var cities = result.Value!
+            .Items
             .Select(e => e.City)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
             .Distinct()
             .OrderBy(c => c)
             .ToList();
@@ -90,7 +132,10 @@ public class EventsController : ControllerBase
         var role = GetTenantRole();
 
         if (!tenantId.HasValue)
-            return BadRequest(new { error = "X-Tenant-Id header is required" });
+            return BadRequest(ProblemDetailsFactory.Create(
+                400,
+                $"{HeaderNames.TenantId} header is required",
+                HttpContext));
 
         if (!userId.HasValue)
             return Unauthorized();
@@ -181,29 +226,29 @@ public class EventsController : ControllerBase
 
     private Guid? GetTenantId()
     {
-        var header = Request.Headers["X-Tenant-Id"].FirstOrDefault();
+        var header = Request.Headers[HeaderNames.TenantId].FirstOrDefault();
         return Guid.TryParse(header, out var id) ? id : null;
     }
 
     private Guid? GetUserId()
     {
-        var header = Request.Headers["X-User-Id"].FirstOrDefault();
+        var header = Request.Headers[HeaderNames.UserId].FirstOrDefault();
         return Guid.TryParse(header, out var id) ? id : null;
     }
 
     private string? GetUserEmail()
     {
-        return Request.Headers["X-User-Email"].FirstOrDefault();
+        return Request.Headers[HeaderNames.UserEmail].FirstOrDefault();
     }
 
     private string? GetTenantRole()
     {
-        return Request.Headers["X-Tenant-Role"].FirstOrDefault();
+        return Request.Headers[HeaderNames.TenantRole].FirstOrDefault();
     }
 
     private bool IsSuperAdmin()
     {
-        return Request.Headers["X-Is-Super-Admin"].FirstOrDefault() == "True";
+        return Request.Headers[HeaderNames.IsSuperAdmin].FirstOrDefault() == "True";
     }
 
     private IActionResult ToActionResult<T>(Result<T> result, Func<T, IActionResult> onSuccess)
@@ -213,10 +258,10 @@ public class EventsController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(new { error = result.Error }),
-            ResultErrorType.Forbidden => Forbid(),
-            ResultErrorType.Conflict => Conflict(new { error = result.Error }),
-            _ => BadRequest(new { error = result.Error })
+            ResultErrorType.NotFound => NotFound(ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
     }
 
@@ -227,10 +272,10 @@ public class EventsController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(new { error = result.Error }),
-            ResultErrorType.Forbidden => Forbid(),
-            ResultErrorType.Conflict => Conflict(new { error = result.Error }),
-            _ => BadRequest(new { error = result.Error })
+            ResultErrorType.NotFound => NotFound(ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
     }
 }
@@ -251,4 +296,3 @@ public record UpdateEventRequest(
     string? City,
     string? CountryCode,
     string? RegistrationUrl);
-

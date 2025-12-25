@@ -29,7 +29,8 @@ public class GetEventByIdHandler : IQueryHandler<GetEventByIdQuery, Result<Event
                 e.City,
                 e.CountryCode,
                 e.RegistrationUrl,
-                e.TenantId == null
+                e.TenantId == null,
+                e.Distances != null ? string.Join(",", e.Distances) : null
             ))
             .FirstOrDefaultAsync(ct);
 

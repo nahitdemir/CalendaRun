@@ -10,6 +10,10 @@ public class Event
     public string City { get; set; } = string.Empty;
     public string CountryCode { get; set; } = string.Empty;
     public string RegistrationUrl { get; set; } = string.Empty;
+    /// <summary>
+    /// Array of distances in KM (e.g., [5, 10, 21, 42])
+    /// </summary>
+    public int[]? Distances { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public Guid? CreatedBy { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }

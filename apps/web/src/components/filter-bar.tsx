@@ -11,7 +11,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DistanceBadge, Distance } from "@/components/distance-badge";
-import { Filter, X } from "lucide-react";
+import { useDistances } from "@/hooks/use-distances";
+import { Filter, X, Check } from "lucide-react";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 export interface FilterValues {
   city: string;
@@ -23,13 +25,16 @@ export interface FilterValues {
 interface FilterBarProps {
   values: FilterValues;
   onChange: (values: FilterValues) => void;
+  onApply?: () => void; // For mobile: explicit Apply button
+  onClear?: () => void; // Clear all filters (updates URL)
   cities?: string[];
+  dateRangeError?: string | null;
 }
 
-const ALL_DISTANCES: Distance[] = ["5K", "10K", "21K", "42K", "ultra"];
-
-export function FilterBar({ values, onChange, cities = [] }: FilterBarProps) {
+export function FilterBar({ values, onChange, onApply, onClear, cities = [], dateRangeError }: FilterBarProps) {
   const { t } = useTranslation();
+  const isMobile = useMediaQuery("(max-width: 768px)");
+  const { distances: availableDistances, isLoading: distancesLoading } = useDistances();
 
   const handleCityChange = (city: string) => {
     onChange({ ...values, city: city === "all" ? "" : city });
@@ -51,7 +56,17 @@ export function FilterBar({ values, onChange, cities = [] }: FilterBarProps) {
   };
 
   const handleClear = () => {
-    onChange({ city: "", dateFrom: "", dateTo: "", distances: [] });
+    // If onClear is provided, use it (it will update URL)
+    // Otherwise, fallback to local onChange (for backward compatibility)
+    if (onClear) {
+      onClear();
+    } else {
+      // Fallback: update local state and apply if onApply exists
+      onChange({ city: "", dateFrom: "", dateTo: "", distances: [] });
+      if (onApply) {
+        setTimeout(() => onApply(), 0);
+      }
+    }
   };
 
   const hasFilters =
@@ -89,6 +104,7 @@ export function FilterBar({ values, onChange, cities = [] }: FilterBarProps) {
             type="date"
             value={values.dateFrom}
             onChange={(e) => handleDateFromChange(e.target.value)}
+            className={dateRangeError ? "border-destructive" : ""}
           />
         </div>
 
@@ -101,6 +117,7 @@ export function FilterBar({ values, onChange, cities = [] }: FilterBarProps) {
             type="date"
             value={values.dateTo}
             onChange={(e) => handleDateToChange(e.target.value)}
+            className={dateRangeError ? "border-destructive" : ""}
           />
         </div>
 
@@ -110,28 +127,64 @@ export function FilterBar({ values, onChange, cities = [] }: FilterBarProps) {
             {t("filters.distance")}
           </label>
           <div className="flex flex-wrap gap-2">
-            {ALL_DISTANCES.map((distance) => (
-              <DistanceBadge
-                key={distance}
-                distance={distance}
-                selected={values.distances.includes(distance)}
-                onClick={() => handleDistanceToggle(distance)}
-                size="sm"
-              />
-            ))}
+            {distancesLoading ? (
+              <span className="text-sm text-muted-foreground">
+                {t("filters.loading") || "Yükleniyor..."}
+              </span>
+            ) : availableDistances.length > 0 ? (
+              availableDistances.map((distance) => (
+                <DistanceBadge
+                  key={distance}
+                  distance={distance}
+                  selected={values.distances.includes(distance)}
+                  onClick={() => handleDistanceToggle(distance)}
+                  size="sm"
+                />
+              ))
+            ) : (
+              // Fallback: Show default distances if API fails
+              (["5K", "10K", "21K", "42K", "ultra"] as Distance[]).map((distance) => (
+                <DistanceBadge
+                  key={distance}
+                  distance={distance}
+                  selected={values.distances.includes(distance)}
+                  onClick={() => handleDistanceToggle(distance)}
+                  size="sm"
+                />
+              ))
+            )}
           </div>
         </div>
       </div>
 
-      {/* Clear button */}
-      {hasFilters && (
-        <div className="mt-4 flex justify-end">
+      {/* Date range error */}
+      {dateRangeError && (
+        <div className="mt-3 rounded-lg border border-destructive/50 bg-destructive/10 p-2 text-sm text-destructive">
+          {dateRangeError}
+        </div>
+      )}
+
+      {/* Actions: Clear + Apply (mobile only) */}
+      <div className="mt-4 flex items-center justify-between">
+        {hasFilters && (
           <Button variant="ghost" size="sm" onClick={handleClear} className="gap-1.5">
             <X className="h-4 w-4" />
             {t("filters.clear")}
           </Button>
-        </div>
-      )}
+        )}
+        {isMobile && onApply && (
+          <Button
+            variant="accent"
+            size="sm"
+            onClick={onApply}
+            className="ml-auto gap-1.5"
+            disabled={!!dateRangeError}
+          >
+            <Check className="h-4 w-4" />
+            {t("filters.apply")}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

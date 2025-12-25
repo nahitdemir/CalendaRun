@@ -65,7 +65,8 @@ public class SettingsDbContext : DbContext
             new SettingDefinition { Key = "platform.invite.expiration_days", Description = "Invite expiration in days", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
             new SettingDefinition { Key = "platform.membership.cache_ttl_minutes", Description = "Membership validation cache TTL in minutes", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
             new SettingDefinition { Key = "gateway.http_client.timeout_seconds", Description = "Gateway HTTP client timeout in seconds", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
-            new SettingDefinition { Key = "audit.default_page_size", Description = "Default page size for audit log queries", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now }
+            new SettingDefinition { Key = "audit.default_page_size", Description = "Default page size for audit log queries", ValueType = SettingValueType.Integer, IsRequired = false, CreatedAt = now, UpdatedAt = now },
+            new SettingDefinition { Key = "event.distances", Description = "Available event distances (km, label, displayOrder)", ValueType = SettingValueType.Json, IsRequired = false, CreatedAt = now, UpdatedAt = now }
         );
 
         // Seed default values for dev environment
@@ -84,7 +85,8 @@ public class SettingsDbContext : DbContext
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000012"), Key = "platform.invite.expiration_days", Environment = "dev", ValueJson = "7", Version = 1, UpdatedAt = now },
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000013"), Key = "platform.membership.cache_ttl_minutes", Environment = "dev", ValueJson = "5", Version = 1, UpdatedAt = now },
             new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000014"), Key = "gateway.http_client.timeout_seconds", Environment = "dev", ValueJson = "5", Version = 1, UpdatedAt = now },
-            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000015"), Key = "audit.default_page_size", Environment = "dev", ValueJson = "50", Version = 1, UpdatedAt = now }
+            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000015"), Key = "audit.default_page_size", Environment = "dev", ValueJson = "50", Version = 1, UpdatedAt = now },
+            new SettingValue { Id = Guid.Parse("11111111-0001-0001-0001-000000000016"), Key = "event.distances", Environment = "dev", ValueJson = "[{\"km\":5,\"label\":\"5K\",\"displayOrder\":1},{\"km\":10,\"label\":\"10K\",\"displayOrder\":2},{\"km\":21,\"label\":\"21K\",\"displayOrder\":3},{\"km\":42,\"label\":\"42K\",\"displayOrder\":4},{\"km\":100,\"label\":\"ultra\",\"displayOrder\":5}]", Version = 1, UpdatedAt = now }
         );
     }
 }

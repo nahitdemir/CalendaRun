@@ -1,82 +1,271 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useTranslation } from "@/contexts/locale-context";
 import { useToast } from "@/components/ui/toast";
 import { useApiMutation } from "@/hooks/use-api-error";
-import { eventsApi, plansApi, Event } from "@/lib/api-client";
+import { eventsApi, plansApi, Event, PagedResult } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { FilterBar, FilterValues } from "@/components/filter-bar";
-import { EventCard, EventCardData } from "@/components/event-card";
+import { EventCard } from "@/components/event-card";
 import { EventCardSkeletonList } from "@/components/event-card-skeleton";
 import { EmptyState } from "@/components/empty-state";
-import { Distance } from "@/components/distance-badge";
-import { Flag, ArrowRight, Calendar, MapPin, Bell } from "lucide-react";
+import type { Distance } from "@/components/distance-badge";
+import { useDistances } from "@/hooks/use-distances";
+import { mapEventToCard } from "@/lib/normalizers/event";
+import { Flag, ArrowRight, Calendar, MapPin, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 
-// Map API event to EventCardData
-function mapEventToCard(event: Event): EventCardData {
-  const now = new Date();
-  const eventDate = new Date(event.startAt);
+// Parse distance string (comma-separated KM) to Distance array (uses distances from Settings)
+function parseDistances(distStr: string | null, kmToDistance: Record<number, Distance>): Distance[] {
+  if (!distStr) return [];
+  return distStr
+    .split(",")
+    .map((d) => d.trim())
+    .map((d) => {
+      const km = parseInt(d, 10);
+      return kmToDistance[km];
+    })
+    .filter((d): d is Distance => d !== undefined);
+}
 
-  // Determine registration status based on event date
-  let registrationStatus: "open" | "closed" | "upcoming" = "open";
-  if (eventDate < now) {
-    registrationStatus = "closed";
-  } else if (!event.registrationUrl) {
-    registrationStatus = "upcoming";
-  }
-
-  // Parse distances from event if available
-  const distances: Distance[] = (event.distances || []).filter((d): d is Distance =>
-    ["5K", "10K", "21K", "42K", "ultra"].includes(d)
-  );
-
-  return {
-    id: event.id,
-    title: event.title,
-    city: event.city,
-    countryCode: event.countryCode,
-    date: event.startAt,
-    distances: distances.length > 0 ? distances : ["21K"], // Default to 21K if no distances
-    registrationStatus,
-    registrationUrl: event.registrationUrl || undefined,
-  };
+// Convert Distance array to comma-separated KM string for API (uses distances from Settings)
+function distancesToString(distances: Distance[], distanceToKm: Record<Distance, number>): string {
+  return distances.map((d) => distanceToKm[d]).join(",");
 }
 
 export default function ExplorePage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { isAuthenticated, isLoading: authLoading, login } = useAuth();
   const { t, locale } = useTranslation();
   const toast = useToast();
   const { onError } = useApiMutation();
+  const { distances: availableDistances, kmToDistance, distanceToKm } = useDistances();
 
-  const [filters, setFilters] = useState<FilterValues>({
-    city: "",
-    dateFrom: "",
-    dateTo: "",
-    distances: [],
-  });
+  // Read filters from URL query params (single source of truth)
+  const filtersFromUrl = useMemo<FilterValues>(() => {
+    return {
+      city: searchParams.get("city") || "",
+      dateFrom: searchParams.get("from") || "",
+      dateTo: searchParams.get("to") || "",
+      distances: parseDistances(searchParams.get("distanceKm"), kmToDistance),
+    };
+  }, [searchParams, kmToDistance]);
 
-  // Fetch events
+  // Pagination from URL
+  const page = useMemo(() => {
+    const pageParam = searchParams.get("page");
+    return pageParam ? parseInt(pageParam, 10) : 1;
+  }, [searchParams]);
+
+  const pageSize = useMemo(() => {
+    const pageSizeParam = searchParams.get("pageSize");
+    return pageSizeParam ? parseInt(pageSizeParam, 10) : 20;
+  }, [searchParams]);
+
+  // Update URL query params (without page reload)
+  const updateQueryParams = useCallback(
+    (updates: {
+      city?: string;
+      from?: string;
+      to?: string;
+      distanceKm?: string;
+      page?: number;
+      pageSize?: number;
+    }) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      // Update or remove params
+      if (updates.city !== undefined) {
+        if (updates.city) params.set("city", updates.city);
+        else params.delete("city");
+      }
+      if (updates.from !== undefined) {
+        if (updates.from) params.set("from", updates.from);
+        else params.delete("from");
+      }
+      if (updates.to !== undefined) {
+        if (updates.to) params.set("to", updates.to);
+        else params.delete("to");
+      }
+      if (updates.distanceKm !== undefined) {
+        if (updates.distanceKm) params.set("distanceKm", updates.distanceKm);
+        else params.delete("distanceKm");
+      }
+      if (updates.page !== undefined) {
+        if (updates.page > 1) params.set("page", updates.page.toString());
+        else params.delete("page");
+      }
+      if (updates.pageSize !== undefined) {
+        if (updates.pageSize !== 20) params.set("pageSize", updates.pageSize.toString());
+        else params.delete("pageSize");
+      }
+
+      // Reset to page 1 when filters change (except when explicitly setting page)
+      if (updates.page === undefined && (updates.city !== undefined || updates.from !== undefined || updates.to !== undefined || updates.distanceKm !== undefined)) {
+        params.delete("page");
+      }
+
+      // Use replace instead of push to avoid adding to history stack when clearing
+      const currentPathname = pathname || "/";
+      const newUrl = params.toString() ? `${currentPathname}?${params.toString()}` : currentPathname;
+      router.replace(newUrl, { scroll: false });
+      
+      // Debug log (dev only)
+      if (process.env.NODE_ENV === "development") {
+        console.log("[Explore] URL updated:", newUrl);
+        console.log("[Explore] Query params:", Object.fromEntries(params));
+      }
+    },
+    [router, pathname, searchParams]
+  );
+
+  // Handle filter changes with debounce (desktop) or immediate (mobile with Apply button)
+  const [pendingFilters, setPendingFilters] = useState<FilterValues>(filtersFromUrl);
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+
+  // Sync pendingFilters with URL when URL changes
+  useEffect(() => {
+    setPendingFilters(filtersFromUrl);
+  }, [filtersFromUrl]);
+
+  // Clear all filters and reset URL - single source of truth
+  const clearFilters = useCallback(() => {
+    // Clear pending filters state
+    const emptyFilters: FilterValues = {
+      city: "",
+      dateFrom: "",
+      dateTo: "",
+      distances: [],
+    };
+    setPendingFilters(emptyFilters);
+
+    // Clear debounce timer if exists
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      setDebounceTimer(null);
+    }
+
+    // Build clean URL - remove all filter params
+    const params = new URLSearchParams();
+    // Keep only pageSize if it's not default (20)
+    const currentPageSize = parseInt(searchParams.get("pageSize") || "20", 10);
+    if (currentPageSize !== 20) {
+      params.set("pageSize", currentPageSize.toString());
+    }
+
+    // Use pathname to ensure correct route (/, /explore, etc.)
+    const cleanUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.replace(cleanUrl, { scroll: false });
+
+    // Debug log (dev only)
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Explore] Filters cleared. URL:", cleanUrl);
+      console.log("[Explore] Query params after clear:", Object.fromEntries(params));
+    }
+  }, [router, pathname, searchParams, debounceTimer]);
+
+  // Apply filters to URL (with debounce for desktop)
+  const applyFilters = useCallback(
+    (newFilters: FilterValues, immediate = false) => {
+      setPendingFilters(newFilters);
+
+      if (immediate) {
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+          setDebounceTimer(null);
+        }
+        updateQueryParams({
+          city: newFilters.city || undefined,
+          from: newFilters.dateFrom || undefined,
+          to: newFilters.dateTo || undefined,
+          distanceKm: newFilters.distances.length > 0 ? distancesToString(newFilters.distances, distanceToKm) : undefined,
+        });
+      } else {
+        // Desktop: debounce
+        if (debounceTimer) clearTimeout(debounceTimer);
+        const timer = setTimeout(() => {
+          updateQueryParams({
+            city: newFilters.city || undefined,
+            from: newFilters.dateFrom || undefined,
+            to: newFilters.dateTo || undefined,
+            distanceKm: newFilters.distances.length > 0 ? distancesToString(newFilters.distances, distanceToKm) : undefined,
+          });
+        }, 400);
+        setDebounceTimer(timer);
+      }
+    },
+    [updateQueryParams, debounceTimer, distanceToKm]
+  );
+
+  // Validate date range
+  const dateRangeError = useMemo(() => {
+    if (pendingFilters.dateFrom && pendingFilters.dateTo) {
+      const from = new Date(pendingFilters.dateFrom);
+      const to = new Date(pendingFilters.dateTo);
+      if (from > to) {
+        return locale === "tr" ? "Başlangıç tarihi bitiş tarihinden sonra olamaz" : "Start date cannot be after end date";
+      }
+    }
+    return null;
+  }, [pendingFilters.dateFrom, pendingFilters.dateTo, locale]);
+
+  // Convert distances to KM for API
+  const distanceKmParam = useMemo(() => {
+    if (filtersFromUrl.distances.length === 0) return undefined;
+    return distancesToString(filtersFromUrl.distances, distanceToKm);
+  }, [filtersFromUrl.distances, distanceToKm]);
+
+  // Fetch events with filters from URL
   const {
-    data: events,
+    data: pagedEvents,
     isLoading: eventsLoading,
     error: eventsError,
   } = useQuery({
-    queryKey: ["events", filters.city, filters.dateFrom, filters.dateTo, filters.distances],
-    queryFn: () =>
-      eventsApi.list({
-        city: filters.city || undefined,
-        dateFrom: filters.dateFrom || undefined,
-        dateTo: filters.dateTo || undefined,
-        distances: filters.distances.length > 0 ? filters.distances.join(",") : undefined,
-      }),
+    queryKey: ["events", filtersFromUrl.city, filtersFromUrl.dateFrom, filtersFromUrl.dateTo, distanceKmParam, page, pageSize],
+    queryFn: async (): Promise<PagedResult<Event>> => {
+      // Don't fetch if date range is invalid
+      if (dateRangeError) {
+        return { items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0 };
+      }
+      const result = await eventsApi.list({
+        city: filtersFromUrl.city || undefined,
+        dateFrom: filtersFromUrl.dateFrom || undefined,
+        dateTo: filtersFromUrl.dateTo || undefined,
+        distances: distanceKmParam,
+        page,
+        pageSize,
+      });
+      
+      // Debug log (dev only)
+      if (process.env.NODE_ENV === "development") {
+        console.log("[Explore] Fetched events:", {
+          url: `/api/events?city=${filtersFromUrl.city || ""}&from=${filtersFromUrl.dateFrom || ""}&to=${filtersFromUrl.dateTo || ""}&page=${page}&pageSize=${pageSize}`,
+          resultType: Array.isArray(result) ? "array" : "object",
+          itemsCount: Array.isArray(result) ? result.length : result.items?.length || 0,
+          totalCount: Array.isArray(result) ? result.length : result.totalCount || 0,
+        });
+      }
+      
+      return result;
+    },
+    enabled: !dateRangeError, // Don't fetch if validation fails
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  // Extract events array from paged result (support both array and PagedResult)
+  const events = useMemo(() => {
+    if (!pagedEvents) return [];
+    // If pagedEvents is an array (legacy response), return as-is
+    if (Array.isArray(pagedEvents)) return pagedEvents;
+    // If pagedEvents is PagedResult, extract items
+    return pagedEvents.items || [];
+  }, [pagedEvents]);
 
   // Fetch cities for filter
   const { data: cities } = useQuery({
@@ -102,9 +291,10 @@ export default function ExplorePage() {
 
   // Map events to card data
   const eventCards = useMemo(() => {
-    if (!events) return [];
-    return events.map(mapEventToCard);
-  }, [events]);
+    if (!events || !kmToDistance || Object.keys(kmToDistance).length === 0) return [];
+    const defaultDistance = availableDistances[0] || ("21K" as Distance);
+    return events.map((event) => mapEventToCard(event, kmToDistance, defaultDistance));
+  }, [events, kmToDistance, availableDistances]);
 
   // Extract unique cities from events for filter fallback
   const availableCities = useMemo(() => {
@@ -114,11 +304,36 @@ export default function ExplorePage() {
   }, [events, cities]);
 
   // Show error only once when it changes
+  const onErrorRef = useRef(onError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
   useEffect(() => {
     if (eventsError) {
-      onError(eventsError);
+      onErrorRef.current(eventsError);
     }
-  }, [eventsError]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [eventsError]);
+
+  // Clear all filters
+  const handleClearFilters = useCallback(() => {
+    updateQueryParams({
+      city: undefined,
+      from: undefined,
+      to: undefined,
+      distanceKm: undefined,
+      page: 1,
+    });
+  }, [updateQueryParams]);
+
+  // Handle pagination
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      updateQueryParams({ page: newPage });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [updateQueryParams]
+  );
 
   // Landing page for unauthenticated users
   if (!authLoading && !isAuthenticated) {
@@ -251,13 +466,28 @@ export default function ExplorePage() {
       />
 
       <FilterBar
-        values={filters}
-        onChange={setFilters}
+        values={pendingFilters}
+        onChange={(newFilters) => applyFilters(newFilters, false)}
+        onApply={() => applyFilters(pendingFilters, true)}
+        onClear={clearFilters}
         cities={availableCities}
+        dateRangeError={dateRangeError}
       />
+
+      {/* Debug: Show current query string (dev only) */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-2 text-xs text-muted-foreground">
+          <strong>Debug:</strong> Query params:{" "}
+          {searchParams.toString() || "(none)"}
+        </div>
+      )}
 
       {eventsLoading ? (
         <EventCardSkeletonList count={6} />
+      ) : dateRangeError ? (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          {dateRangeError}
+        </div>
       ) : eventCards.length === 0 ? (
         <EmptyState
           variant="events"
@@ -265,21 +495,51 @@ export default function ExplorePage() {
           description={t("empty.noEventsDesc")}
           action={{
             label: t("filters.clear"),
-            onClick: () =>
-              setFilters({ city: "", dateFrom: "", dateTo: "", distances: [] }),
+            onClick: handleClearFilters,
           }}
         />
       ) : (
-        <div className="space-y-4">
-          {eventCards.map((event) => (
-            <EventCard
-              key={event.id}
-              event={event}
-              onView={() => router.push(`/events/${event.id}`)}
-              onAddToPlan={() => handleAddToPlan(event.id)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="space-y-4">
+            {eventCards.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                onView={() => router.push(`/events/${event.id}`)}
+                onAddToPlan={() => handleAddToPlan(event.id)}
+              />
+            ))}
+          </div>
+
+          {/* Simple pagination */}
+          <div className="flex items-center justify-between border-t pt-4">
+            <div className="text-sm text-muted-foreground">
+              {locale === "tr" ? "Sayfa" : "Page"} {page}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(page - 1)}
+                disabled={page <= 1 || eventsLoading}
+                className="gap-1"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                {locale === "tr" ? "Önceki" : "Previous"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(page + 1)}
+                disabled={eventCards.length < pageSize || eventsLoading}
+                className="gap-1"
+              >
+                {locale === "tr" ? "Sonraki" : "Next"}
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
