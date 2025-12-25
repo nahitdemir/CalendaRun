@@ -8,6 +8,7 @@ import { useTranslation } from "@/contexts/locale-context";
 import { useToast } from "@/components/ui/toast";
 import { useApiMutation } from "@/hooks/use-api-error";
 import { plansApi, PlanItem, eventsApi, Event } from "@/lib/api-client";
+import { normalizePlanState } from "@/lib/normalizers/plan";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { PlanItemCard } from "@/components/plan-item-card";
@@ -66,27 +67,11 @@ function PlanPageContent() {
 
     const eventMap = new Map(events?.map((e) => [e.id, e]) || []);
 
-    return plansRaw.map((plan) => {
-      // Convert state enum (0,1,2,3) to string
-      let stateStr: "Active" | "Registered" | "Completed" | "Cancelled" = "Active";
-      if (typeof plan.state === "number") {
-        const stateMap: ("Active" | "Registered" | "Completed" | "Cancelled")[] = [
-          "Active",
-          "Registered",
-          "Completed",
-          "Cancelled",
-        ];
-        stateStr = stateMap[plan.state] || "Active";
-      } else {
-        stateStr = plan.state;
-      }
-
-      return {
-        ...plan,
-        state: stateStr,
-        event: eventMap.get(plan.eventId),
-      };
-    });
+    return plansRaw.map((plan) => ({
+      ...plan,
+      state: normalizePlanState(plan.state),
+      event: eventMap.get(plan.eventId),
+    }));
   }, [plansRaw, events]);
 
   // Update state mutation

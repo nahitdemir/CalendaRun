@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
@@ -10,7 +11,14 @@ import { eventsApi, plansApi, Event, EventMilestone, ApiError } from "@/lib/api-
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DistanceBadge, Distance } from "@/components/distance-badge";
+import { DistanceBadge } from "@/components/distance-badge";
+import type { Distance } from "@/components/distance-badge";
+import { useDistances } from "@/hooks/use-distances";
+import { normalizeEventDistances } from "@/lib/normalizers/event";
+import {
+  MILESTONE_TYPES,
+  isRegistrationMilestone,
+} from "@/lib/constants/milestones";
 import { MilestoneTimeline, Milestone } from "@/components/milestone-timeline";
 import { EmptyState } from "@/components/empty-state";
 import { EventDetailSkeleton } from "@/components/event-detail-skeleton";
@@ -37,8 +45,8 @@ function determineRegistrationStatus(
   }
 
   const now = new Date();
-  const regOpen = milestones.find((m) => m.type === "REG_OPEN");
-  const regClose = milestones.find((m) => m.type === "REG_CLOSE");
+  const regOpen = milestones.find((m) => m.type === MILESTONE_TYPES.regOpen);
+  const regClose = milestones.find((m) => m.type === MILESTONE_TYPES.regClose);
 
   if (regClose && new Date(regClose.date) < now) {
     return "Closed";
@@ -70,6 +78,7 @@ export default function EventDetailPage({
   const { t, locale } = useTranslation();
   const toast = useToast();
   const { onError } = useApiMutation();
+  const { kmToDistance } = useDistances();
 
   // Fetch event
   const {
@@ -95,6 +104,11 @@ export default function EventDetailPage({
     queryFn: () => eventsApi.getMilestones(id),
     enabled: !!id && !!event,
   });
+
+  // Parse distances from event (string or string[])
+  const distances: Distance[] = useMemo(() => {
+    return normalizeEventDistances(event?.distances, kmToDistance);
+  }, [event?.distances, kmToDistance]);
 
   // Format date
   const formatDate = (dateStr: string, options?: Intl.DateTimeFormatOptions) => {
@@ -192,17 +206,12 @@ export default function EventDetailPage({
     );
   }
 
-  // Parse distances
-  const distances: Distance[] = (event.distances || []).filter((d): d is Distance =>
-    ["5K", "10K", "21K", "42K", "ultra"].includes(d)
-  );
-
   // Determine registration status
   const registrationStatus = determineRegistrationStatus(milestones, event.registrationUrl);
 
   // Convert milestones to timeline format (only REG_OPEN and REG_CLOSE)
   const timelineMilestones: Milestone[] = (milestones || [])
-    .filter((m) => m.type === "REG_OPEN" || m.type === "REG_CLOSE")
+    .filter((m) => isRegistrationMilestone(m.type))
     .map((m) => {
       const now = new Date();
       const milestoneDate = new Date(m.date);

@@ -2,6 +2,9 @@
  * Typed API Client with ProblemDetails handling
  * Centralizes all API calls with proper error handling and tenant/auth headers
  */
+import { DEFAULT_DISTANCE_OPTIONS } from "@/lib/constants/distances";
+import type { MilestoneType } from "@/lib/constants/milestones";
+import type { PlanState } from "@/lib/constants/plan";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -13,6 +16,7 @@ export interface ProblemDetails {
   status: number;
   detail?: string;
   instance?: string;
+  code?: string;
   traceId?: string;
   errors?: Record<string, string[]>;
 }
@@ -42,6 +46,10 @@ export class ApiError extends Error {
   get traceId(): string | undefined {
     return this.problemDetails?.traceId;
   }
+
+  get code(): string | undefined {
+    return this.problemDetails?.code;
+  }
 }
 
 // ============ Request Configuration ============
@@ -52,6 +60,7 @@ interface RequestConfig {
   params?: Record<string, string | number | boolean | undefined>;
   skipTenant?: boolean;
   skipAuth?: boolean;
+  tenantId?: string;
 }
 
 // ============ Storage Keys ============
@@ -137,7 +146,7 @@ async function request<T>(
 
   // Add tenant header
   if (!skipTenant) {
-    const tenantId = getStoredTenantId();
+    const tenantId = config.tenantId ?? getStoredTenantId();
     if (tenantId) {
       headers["X-Tenant-Id"] = tenantId;
     }
@@ -192,8 +201,11 @@ async function request<T>(
 // ============ HTTP Method Helpers ============
 
 export const api = {
-  get: <T>(endpoint: string, params?: Record<string, string | number | boolean | undefined>) =>
-    request<T>(endpoint, { method: "GET", params }),
+  get: <T>(
+    endpoint: string,
+    params?: Record<string, string | number | boolean | undefined>,
+    config?: Omit<RequestConfig, "method" | "body" | "params">
+  ) => request<T>(endpoint, { method: "GET", params, ...config }),
 
   post: <T>(endpoint: string, body?: unknown) =>
     request<T>(endpoint, { method: "POST", body }),
@@ -250,7 +262,7 @@ export interface Event {
   registrationUrl: string | null;
   organizerName?: string;
   organizerUrl?: string;
-  distances?: string[];
+  distances?: string | string[]; // Backend sends comma-separated string (e.g., "5,10,21"), frontend may use array
   createdAt: string;
   createdBy: string | null;
   updatedAt: string | null;
@@ -261,7 +273,7 @@ export interface Event {
 export interface EventMilestone {
   id: string;
   eventId: string;
-  type: "REG_OPEN" | "REG_CLOSE" | "EVENT_START" | "EVENT_END" | "CUSTOM";
+  type: MilestoneType;
   label: string;
   date: string;
   description?: string;
@@ -272,7 +284,7 @@ export interface PlanItem {
   eventId: string;
   userId?: string;
   tenantId?: string;
-  state: "Active" | "Registered" | "Completed" | "Cancelled" | number; // Backend sends enum as number
+  state: PlanState | number; // Backend sends enum as number
   timezone?: string;
   createdAt: string;
   event?: Event;
@@ -302,6 +314,44 @@ export interface PagedResult<T> {
 export const authApi = {
   getMe: () => api.get<UserProfile>("/api/me"),
   getMyTenants: () => api.get<TenantMembership[]>("/api/me/tenants"),
+};
+
+// --- Settings ---
+
+export interface DistanceOption {
+  km: number;
+  label: string;
+  displayOrder: number;
+}
+
+export const settingsApi = {
+  getDistances: async (tenantId?: string): Promise<DistanceOption[]> => {
+    try {
+      const response = await api.get<{
+        key: string;
+        value: DistanceOption[];
+        tenantId: string | null;
+      }>("/api/settings/event.distances", undefined, {
+        skipAuth: true,
+        tenantId,
+      });
+
+      // Extract value from response
+      if (response && response.value && Array.isArray(response.value)) {
+        return response.value;
+      }
+      
+      // If response.value is not an array, it might be the value directly (if API returns just the value)
+      if (Array.isArray(response)) {
+        return response;
+      }
+      
+    } catch (error) {
+      // On error, return fallback immediately
+    }
+    
+    return [...DEFAULT_DISTANCE_OPTIONS];
+  },
 };
 
 // --- Events (Public) ---

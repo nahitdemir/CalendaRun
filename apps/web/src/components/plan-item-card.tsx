@@ -2,11 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { PlanItem, eventsApi, EventMilestone } from "@/lib/api-client";
+import { PlanItem, eventsApi } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { DistanceBadge, Distance } from "@/components/distance-badge";
+import { DistanceBadge } from "@/components/distance-badge";
+import type { Distance } from "@/components/distance-badge";
+import { useDistances } from "@/hooks/use-distances";
+import { normalizeEventDistances } from "@/lib/normalizers/event";
+import { normalizePlanState } from "@/lib/normalizers/plan";
+import { isRegistrationMilestone } from "@/lib/constants/milestones";
 import {
   Calendar,
   MapPin,
@@ -36,6 +41,7 @@ export function PlanItemCard({
 }: PlanItemCardProps) {
   const router = useRouter();
   const { t, locale } = useTranslation();
+  const { kmToDistance } = useDistances();
 
   // Fetch milestones to find next important date
   const { data: milestones } = useQuery({
@@ -47,9 +53,8 @@ export function PlanItemCard({
   const event = plan.event;
   if (!event) return null;
 
-  const distances: Distance[] = (event.distances || []).filter((d): d is Distance =>
-    ["5K", "10K", "21K", "42K", "ultra"].includes(d)
-  );
+  // Parse distances from event (string or string[])
+  const distances: Distance[] = normalizeEventDistances(event.distances, kmToDistance);
 
   // Format date
   const formatDate = (dateStr: string) => {
@@ -80,7 +85,7 @@ export function PlanItemCard({
     const upcoming = milestones
       .filter((m) => {
         const milestoneDate = new Date(m.date);
-        return milestoneDate > now && (m.type === "REG_OPEN" || m.type === "REG_CLOSE");
+        return milestoneDate > now && isRegistrationMilestone(m.type);
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -120,10 +125,7 @@ export function PlanItemCard({
   };
 
   // Normalize state to string
-  const stateStr: "Active" | "Registered" | "Completed" | "Cancelled" =
-    typeof plan.state === "number"
-      ? (["Active", "Registered", "Completed", "Cancelled"] as const)[plan.state] || "Active"
-      : plan.state;
+  const stateStr = normalizePlanState(plan.state);
 
   const config = stateConfig[stateStr] || stateConfig.Active;
   const StateIcon = config.icon;
@@ -274,4 +276,3 @@ export function PlanItemCard({
     </Card>
   );
 }
-
