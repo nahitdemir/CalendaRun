@@ -21,20 +21,12 @@ export interface FilterValues {
   distances: Distance[];
 }
 
-interface SortOption {
-  value: string;
-  label: string;
-}
-
 interface FilterBarProps {
   values: FilterValues;
   onChange: (values: FilterValues) => void;
   onClear?: () => void;
   clearLabel?: string;
   showClear?: boolean;
-  sortValue?: string;
-  sortOptions?: SortOption[];
-  onSortChange?: (value: string) => void;
   cities?: string[];
   dateRangeError?: string | null;
 }
@@ -45,9 +37,6 @@ export function FilterBar({
   onClear,
   clearLabel,
   showClear,
-  sortValue,
-  sortOptions,
-  onSortChange,
   cities = [],
   dateRangeError,
 }: FilterBarProps) {
@@ -73,42 +62,25 @@ export function FilterBar({
     onChange({ ...values, distances: newDistances });
   };
 
-  const actions = (
-    <div className="flex items-center justify-end gap-2">
-      {sortOptions && sortValue && onSortChange && (
-        <Select value={sortValue} onValueChange={onSortChange}>
-          <SelectTrigger className="h-9 w-[200px]">
-            <SelectValue placeholder={t("filters.sort.label")} />
-          </SelectTrigger>
-          <SelectContent>
-            {sortOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
-      {showClear && onClear && (
-        <Button variant="ghost" size="sm" onClick={onClear} className="gap-1.5">
-          <RotateCcw className="h-4 w-4" />
-          {clearLabel || t("filters.clear")}
-        </Button>
-      )}
-    </div>
-  );
+  const showClearAction = Boolean(showClear && onClear);
 
   return (
     <div className="rounded-2xl border bg-card p-4 shadow-sm">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {t("filters.title")}
         </span>
+        {showClearAction && (
+          <Button variant="ghost" size="sm" onClick={onClear} className="gap-1.5">
+            <RotateCcw className="h-4 w-4" />
+            {clearLabel || t("filters.clear")}
+          </Button>
+        )}
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-[260px_420px_320px_1fr_auto] lg:items-end">
+      <div className="mt-4 flex flex-wrap items-end gap-4">
         {/* City */}
-        <div className="space-y-1.5 lg:min-w-[240px]">
+        <div className="w-full min-w-[220px] flex-1 space-y-1.5">
           <label className="text-sm font-medium text-muted-foreground">
             {t("filters.city")}
           </label>
@@ -128,7 +100,7 @@ export function FilterBar({
         </div>
 
         {/* Date range */}
-        <div className="space-y-1.5 lg:min-w-[380px]">
+        <div className="w-full min-w-[280px] flex-1 space-y-1.5">
           <label className="text-sm font-medium text-muted-foreground">
             {t("filters.dateRange")}
           </label>
@@ -153,7 +125,7 @@ export function FilterBar({
         </div>
 
         {/* Distances */}
-        <div className="space-y-1.5 lg:min-w-[280px]">
+        <div className="w-full min-w-[240px] flex-1 space-y-1.5">
           <label className="text-sm font-medium text-muted-foreground">
             {t("filters.distance")}
           </label>
@@ -186,9 +158,6 @@ export function FilterBar({
             )}
           </div>
         </div>
-
-        <div className="hidden lg:block" aria-hidden="true" />
-        <div className="md:col-span-2 lg:col-span-1">{actions}</div>
       </div>
 
       {/* Date range error */}

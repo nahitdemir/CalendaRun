@@ -9,6 +9,13 @@ import { useToast } from "@/components/ui/toast";
 import { useApiMutation } from "@/hooks/use-api-error";
 import { eventsApi, plansApi, Event, PagedResult, PlanItem, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
 import { FilterBar, FilterValues } from "@/components/filter-bar";
 import { EventCard } from "@/components/event-card";
@@ -48,7 +55,6 @@ export default function ExplorePage() {
     getNumberParam,
     updateParams,
     clearParams,
-    hasActiveFilters,
   } = useListQueryParams({
     filterKeys: ["city", "from", "to", "distanceKm", "sort"],
     defaults: { pageSize: 20, sort: "date_asc" },
@@ -325,8 +331,9 @@ export default function ExplorePage() {
     return Array.from(new Set(events.map((e) => e.city))).sort();
   }, [events, cities]);
 
-  const sortLabel =
-    sortValue === "date_desc" ? t("filters.sort.dateDesc") : t("filters.sort.dateAsc");
+  const hasActiveFilters = useMemo(() => {
+    return ["city", "from", "to", "distanceKm"].some((key) => searchParams.get(key));
+  }, [searchParams]);
 
   // Show error only once when it changes
   const onErrorRef = useRef(onError);
@@ -342,7 +349,7 @@ export default function ExplorePage() {
 
   // Clear all filters
   const handleClearFilters = useCallback(() => {
-    clearParams();
+    clearParams(["city", "from", "to", "distanceKm"]);
   }, [clearParams]);
 
   const handleRemoveFromPlan = useCallback(
@@ -507,9 +514,6 @@ export default function ExplorePage() {
         onClear={handleClearFilters}
         clearLabel={t("filters.clear")}
         showClear={hasActiveFilters}
-        sortValue={sortValue}
-        sortOptions={sortOptions}
-        onSortChange={handleSortChange}
         cities={availableCities}
         dateRangeError={dateRangeError}
       />
@@ -522,10 +526,26 @@ export default function ExplorePage() {
         </div>
       )}
 
-      <ResultsHeader
-        count={totalCount}
-        sortLabel={sortValue !== "date_asc" ? sortLabel : undefined}
-      />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <ResultsHeader count={totalCount} className="w-full sm:w-auto" />
+        <div className="flex w-full justify-end sm:w-auto">
+          <Select value={sortValue} onValueChange={handleSortChange}>
+            <SelectTrigger
+              className="h-9 min-w-[160px] max-w-[220px]"
+              aria-label={t("filters.sort.label")}
+            >
+              <SelectValue placeholder={t("filters.sort.label")} />
+            </SelectTrigger>
+            <SelectContent>
+              {sortOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       {eventsLoading ? (
         <EventCardSkeletonList count={6} />
