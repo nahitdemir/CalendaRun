@@ -192,6 +192,12 @@
     "yes": "Evet",
     "no": "Hayır"
   },
+  "theme": {
+    "label": "Tema",
+    "light": "Aydınlık",
+    "dark": "Karanlık",
+    "system": "Sistem"
+  },
   "distances": {
     "5K": "5K",
     "10K": "10K",

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Inter, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -20,6 +21,25 @@ export const metadata: Metadata = {
   description: "Never miss race registrations. Add to your calendar, get reminders.",
 };
 
+const themeScript = `
+(() => {
+  try {
+    const storageKey = "calendarun-theme";
+    const stored = localStorage.getItem(storageKey);
+    const theme =
+      stored === "light" || stored === "dark" || stored === "system"
+        ? stored
+        : "system";
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const resolved = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
+    document.documentElement.classList.toggle("dark", resolved === "dark");
+    document.documentElement.style.colorScheme = resolved;
+  } catch {
+    // noop
+  }
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,6 +47,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themeScript }}
+        />
+      </head>
       <body
         className={`${inter.variable} ${barlowCondensed.variable} min-h-screen bg-background font-sans antialiased`}
       >

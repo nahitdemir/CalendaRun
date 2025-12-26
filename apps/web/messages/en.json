@@ -192,6 +192,12 @@
     "yes": "Yes",
     "no": "No"
   },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
   "distances": {
     "5K": "5K",
     "10K": "10K",

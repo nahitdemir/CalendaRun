@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TenantSelector } from "@/components/tenant-selector";
 import { LocaleSwitcher } from "./locale-switcher";
+import { ThemeToggle } from "./theme-toggle";
 import {
   Flag,
   Compass,
@@ -234,6 +235,8 @@ export function TopNav() {
 
             {/* Locale switcher */}
             <LocaleSwitcher />
+
+            <ThemeToggle />
 
             {/* User menu */}
             {isAuthenticated ? (
