@@ -14,13 +14,7 @@ import { FilterBar, FilterValues } from "@/components/filter-bar";
 import { EventCard } from "@/components/event-card";
 import { EventCardSkeletonList } from "@/components/event-card-skeleton";
 import { EmptyState } from "@/components/empty-state";
-import {
-  ActiveFiltersBar,
-  ListPagination,
-  ListToolbar,
-  PageShell,
-  ResultsHeader,
-} from "@/components/listing";
+import { ListPagination, PageShell, ResultsHeader } from "@/components/listing";
 import type { Distance } from "@/components/distance-badge";
 import { useDistances } from "@/hooks/use-distances";
 import { mapEventToCard } from "@/lib/normalizers/event";
@@ -56,8 +50,8 @@ export default function ExplorePage() {
     clearParams,
     hasActiveFilters,
   } = useListQueryParams({
-    filterKeys: ["city", "from", "to", "distanceKm"],
-    defaults: { pageSize: 20 },
+    filterKeys: ["city", "from", "to", "distanceKm", "sort"],
+    defaults: { pageSize: 20, sort: "date_asc" },
     debounceMs: 400,
   });
   const { isAuthenticated, isLoading: authLoading, login } = useAuth();
@@ -152,6 +146,17 @@ export default function ExplorePage() {
     return getNumberParam("pageSize", 20);
   }, [getNumberParam]);
 
+  const sortParam = getParam("sort", "date_asc");
+  const sortValue = sortParam === "date_desc" ? "date_desc" : "date_asc";
+
+  const sortOptions = useMemo(
+    () => [
+      { value: "date_asc", label: t("filters.sort.dateAsc") },
+      { value: "date_desc", label: t("filters.sort.dateDesc") },
+    ],
+    [t]
+  );
+
   const debouncedFilters = useMemo<FilterValues>(() => {
     return {
       city: debouncedSearchParams.get("city") || "",
@@ -196,13 +201,21 @@ export default function ExplorePage() {
     [distanceToKm, updateParams]
   );
 
+  const handleSortChange = useCallback(
+    (value: string) => {
+      const nextSort = value === "date_desc" ? "date_desc" : "date_asc";
+      updateParams({ sort: nextSort });
+    },
+    [updateParams]
+  );
+
   // Fetch events with filters from URL
   const {
     data: pagedEvents,
     isLoading: eventsLoading,
     error: eventsError,
   } = useQuery({
-    queryKey: ["events", debouncedFilters.city, debouncedFilters.dateFrom, debouncedFilters.dateTo, distanceKmParam, page, pageSize],
+    queryKey: ["events", debouncedFilters.city, debouncedFilters.dateFrom, debouncedFilters.dateTo, distanceKmParam, sortValue, page, pageSize],
     queryFn: async (): Promise<PagedResult<Event>> => {
       // Don't fetch if date range is invalid
       if (dateRangeError) {
@@ -248,6 +261,17 @@ export default function ExplorePage() {
     return pagedEvents.totalCount || 0;
   }, [pagedEvents]);
 
+  const sortedEvents = useMemo(() => {
+    if (!events) return [];
+    const sorted = [...events];
+    sorted.sort((a, b) => {
+      const timeA = new Date(a.startAt).getTime();
+      const timeB = new Date(b.startAt).getTime();
+      return sortValue === "date_desc" ? timeB - timeA : timeA - timeB;
+    });
+    return sorted;
+  }, [events, sortValue]);
+
   // Fetch cities for filter
   const { data: cities } = useQuery({
     queryKey: ["event-cities"],
@@ -289,10 +313,10 @@ export default function ExplorePage() {
 
   // Map events to card data
   const eventCards = useMemo(() => {
-    if (!events || !kmToDistance || Object.keys(kmToDistance).length === 0) return [];
+    if (!sortedEvents || !kmToDistance || Object.keys(kmToDistance).length === 0) return [];
     const defaultDistance = availableDistances[0] || ("21K" as Distance);
-    return events.map((event) => mapEventToCard(event, kmToDistance, defaultDistance));
-  }, [events, kmToDistance, availableDistances]);
+    return sortedEvents.map((event) => mapEventToCard(event, kmToDistance, defaultDistance));
+  }, [sortedEvents, kmToDistance, availableDistances]);
 
   // Extract unique cities from events for filter fallback
   const availableCities = useMemo(() => {
@@ -301,60 +325,8 @@ export default function ExplorePage() {
     return Array.from(new Set(events.map((e) => e.city))).sort();
   }, [events, cities]);
 
-  const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", {
-        dateStyle: "medium",
-      }),
-    [locale]
-  );
-
-  const activeFilters = useMemo(() => {
-    const filters: { key: string; label: string; onRemove: () => void }[] = [];
-
-    if (filtersFromUrl.city) {
-      filters.push({
-        key: "city",
-        label: `${t("filters.city")}: ${filtersFromUrl.city}`,
-        onRemove: () => updateParams({ city: "" }),
-      });
-    }
-
-    if (filtersFromUrl.dateFrom) {
-      const label = dateFormatter.format(new Date(filtersFromUrl.dateFrom));
-      filters.push({
-        key: "from",
-        label: `${t("filters.from")}: ${label}`,
-        onRemove: () => updateParams({ from: "" }),
-      });
-    }
-
-    if (filtersFromUrl.dateTo) {
-      const label = dateFormatter.format(new Date(filtersFromUrl.dateTo));
-      filters.push({
-        key: "to",
-        label: `${t("filters.to")}: ${label}`,
-        onRemove: () => updateParams({ to: "" }),
-      });
-    }
-
-    if (filtersFromUrl.distances.length > 0) {
-      filtersFromUrl.distances.forEach((distance) => {
-        filters.push({
-          key: `distance-${distance}`,
-          label: t(`distances.${distance}`),
-          onRemove: () => {
-            const remaining = filtersFromUrl.distances.filter((d) => d !== distance);
-            const distanceKmValue =
-              remaining.length > 0 ? distancesToString(remaining, distanceToKm) : "";
-            updateParams({ distanceKm: distanceKmValue });
-          },
-        });
-      });
-    }
-
-    return filters;
-  }, [dateFormatter, distanceToKm, filtersFromUrl, t, updateParams]);
+  const sortLabel =
+    sortValue === "date_desc" ? t("filters.sort.dateDesc") : t("filters.sort.dateAsc");
 
   // Show error only once when it changes
   const onErrorRef = useRef(onError);
@@ -529,25 +501,17 @@ export default function ExplorePage() {
         size="large"
       />
 
-      <ListToolbar
-        left={
-          <FilterBar
-            values={filtersFromUrl}
-            onChange={handleFiltersChange}
-            cities={availableCities}
-            dateRangeError={dateRangeError}
-            showActions={false}
-          />
-        }
-        showClear={hasActiveFilters}
-        clearLabel={t("filters.clear")}
+      <FilterBar
+        values={filtersFromUrl}
+        onChange={handleFiltersChange}
         onClear={handleClearFilters}
-      />
-
-      <ActiveFiltersBar
-        filters={activeFilters}
-        onClearAll={handleClearFilters}
         clearLabel={t("filters.clear")}
+        showClear={hasActiveFilters}
+        sortValue={sortValue}
+        sortOptions={sortOptions}
+        onSortChange={handleSortChange}
+        cities={availableCities}
+        dateRangeError={dateRangeError}
       />
 
       {/* Debug: Show current query string (dev only) */}
@@ -558,7 +522,10 @@ export default function ExplorePage() {
         </div>
       )}
 
-      <ResultsHeader count={totalCount} />
+      <ResultsHeader
+        count={totalCount}
+        sortLabel={sortValue !== "date_asc" ? sortLabel : undefined}
+      />
 
       {eventsLoading ? (
         <EventCardSkeletonList count={6} />
@@ -571,10 +538,6 @@ export default function ExplorePage() {
           variant="events"
           title={t("empty.noEventsTitle")}
           description={t("empty.noEventsDesc")}
-          action={{
-            label: t("filters.clear"),
-            onClick: handleClearFilters,
-          }}
         />
       ) : (
         <>

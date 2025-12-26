@@ -12,8 +12,7 @@ import {
 } from "@/components/ui/select";
 import { DistanceBadge, Distance } from "@/components/distance-badge";
 import { useDistances } from "@/hooks/use-distances";
-import { Filter, X, Check } from "lucide-react";
-import { useMediaQuery } from "@/hooks/use-media-query";
+import { RotateCcw } from "lucide-react";
 
 export interface FilterValues {
   city: string;
@@ -22,27 +21,37 @@ export interface FilterValues {
   distances: Distance[];
 }
 
+interface SortOption {
+  value: string;
+  label: string;
+}
+
 interface FilterBarProps {
   values: FilterValues;
   onChange: (values: FilterValues) => void;
-  onApply?: () => void; // For mobile: explicit Apply button
-  onClear?: () => void; // Clear all filters (updates URL)
+  onClear?: () => void;
+  clearLabel?: string;
+  showClear?: boolean;
+  sortValue?: string;
+  sortOptions?: SortOption[];
+  onSortChange?: (value: string) => void;
   cities?: string[];
   dateRangeError?: string | null;
-  showActions?: boolean;
 }
 
 export function FilterBar({
   values,
   onChange,
-  onApply,
   onClear,
+  clearLabel,
+  showClear,
+  sortValue,
+  sortOptions,
+  onSortChange,
   cities = [],
   dateRangeError,
-  showActions = true,
 }: FilterBarProps) {
   const { t } = useTranslation();
-  const isMobile = useMediaQuery("(max-width: 768px)");
   const { distances: availableDistances, isLoading: distancesLoading } = useDistances();
 
   const handleCityChange = (city: string) => {
@@ -64,28 +73,42 @@ export function FilterBar({
     onChange({ ...values, distances: newDistances });
   };
 
-  const handleClear = () => {
-    // If onClear is provided, use it (it will update URL)
-    // Otherwise, fallback to local onChange (for backward compatibility)
-    if (onClear) {
-      onClear();
-    } else {
-      // Fallback: update local state and apply if onApply exists
-      onChange({ city: "", dateFrom: "", dateTo: "", distances: [] });
-      if (onApply) {
-        setTimeout(() => onApply(), 0);
-      }
-    }
-  };
-
-  const hasFilters =
-    values.city || values.dateFrom || values.dateTo || values.distances.length > 0;
+  const actions = (
+    <div className="flex items-center justify-end gap-2">
+      {sortOptions && sortValue && onSortChange && (
+        <Select value={sortValue} onValueChange={onSortChange}>
+          <SelectTrigger className="h-9 w-[200px]">
+            <SelectValue placeholder={t("filters.sort.label")} />
+          </SelectTrigger>
+          <SelectContent>
+            {sortOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {showClear && onClear && (
+        <Button variant="ghost" size="sm" onClick={onClear} className="gap-1.5">
+          <RotateCcw className="h-4 w-4" />
+          {clearLabel || t("filters.clear")}
+        </Button>
+      )}
+    </div>
+  );
 
   return (
     <div className="rounded-2xl border bg-card p-4 shadow-sm">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {t("filters.title")}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-[260px_420px_320px_1fr_auto] lg:items-end">
         {/* City */}
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 lg:min-w-[240px]">
           <label className="text-sm font-medium text-muted-foreground">
             {t("filters.city")}
           </label>
@@ -104,34 +127,33 @@ export function FilterBar({
           </Select>
         </div>
 
-        {/* From date */}
-        <div className="space-y-1.5">
+        {/* Date range */}
+        <div className="space-y-1.5 lg:min-w-[380px]">
           <label className="text-sm font-medium text-muted-foreground">
-            {t("filters.from")}
+            {t("filters.dateRange")}
           </label>
-          <Input
-            type="date"
-            value={values.dateFrom}
-            onChange={(e) => handleDateFromChange(e.target.value)}
-            className={dateRangeError ? "border-destructive" : ""}
-          />
-        </div>
-
-        {/* To date */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-muted-foreground">
-            {t("filters.to")}
-          </label>
-          <Input
-            type="date"
-            value={values.dateTo}
-            onChange={(e) => handleDateToChange(e.target.value)}
-            className={dateRangeError ? "border-destructive" : ""}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="date"
+              value={values.dateFrom}
+              onChange={(e) => handleDateFromChange(e.target.value)}
+              className={dateRangeError ? "border-destructive" : ""}
+              placeholder={t("filters.from")}
+              aria-label={t("filters.from")}
+            />
+            <Input
+              type="date"
+              value={values.dateTo}
+              onChange={(e) => handleDateToChange(e.target.value)}
+              className={dateRangeError ? "border-destructive" : ""}
+              placeholder={t("filters.to")}
+              aria-label={t("filters.to")}
+            />
+          </div>
         </div>
 
         {/* Distances */}
-        <div className="md:col-span-2 space-y-1.5">
+        <div className="space-y-1.5 lg:min-w-[280px]">
           <label className="text-sm font-medium text-muted-foreground">
             {t("filters.distance")}
           </label>
@@ -164,35 +186,15 @@ export function FilterBar({
             )}
           </div>
         </div>
+
+        <div className="hidden lg:block" aria-hidden="true" />
+        <div className="md:col-span-2 lg:col-span-1">{actions}</div>
       </div>
 
       {/* Date range error */}
       {dateRangeError && (
         <div className="mt-3 rounded-lg border border-destructive/50 bg-destructive/10 p-2 text-sm text-destructive">
           {dateRangeError}
-        </div>
-      )}
-
-      {showActions && (
-        <div className="mt-4 flex items-center justify-between">
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={handleClear} className="gap-1.5">
-              <X className="h-4 w-4" />
-              {t("filters.clear")}
-            </Button>
-          )}
-          {isMobile && onApply && (
-            <Button
-              variant="accent"
-              size="sm"
-              onClick={onApply}
-              className="ml-auto gap-1.5"
-              disabled={!!dateRangeError}
-            >
-              <Check className="h-4 w-4" />
-              {t("filters.apply")}
-            </Button>
-          )}
         </div>
       )}
     </div>

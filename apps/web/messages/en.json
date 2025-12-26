@@ -16,14 +16,21 @@
     "subtitle": "Never miss registrations. Add to your calendar, get reminders."
   },
   "filters": {
+    "title": "Filters",
     "city": "City",
     "from": "From",
     "to": "To",
+    "dateRange": "Date",
     "distance": "Distance",
     "apply": "Apply",
     "clear": "Clear",
     "allCities": "All Cities",
-    "allDistances": "All Distances"
+    "allDistances": "All Distances",
+    "sort": {
+      "label": "Sort",
+      "dateAsc": "Date (near → far)",
+      "dateDesc": "Date (far → near)"
+    }
   },
   "listing": {
     "results": "{count} results",

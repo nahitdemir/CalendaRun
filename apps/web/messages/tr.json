@@ -16,14 +16,21 @@
     "subtitle": "Kayıt tarihlerini kaçırma. Takvimine ekle, hatırlatma al."
   },
   "filters": {
+    "title": "Filtreler",
     "city": "Şehir",
     "from": "Başlangıç",
     "to": "Bitiş",
+    "dateRange": "Tarih",
     "distance": "Mesafe",
     "apply": "Uygula",
     "clear": "Temizle",
     "allCities": "Tüm Şehirler",
-    "allDistances": "Tüm Mesafeler"
+    "allDistances": "Tüm Mesafeler",
+    "sort": {
+      "label": "Sırala",
+      "dateAsc": "Tarihe göre (yakın → uzak)",
+      "dateDesc": "Tarihe göre (uzak → yakın)"
+    }
   },
   "listing": {
     "results": "{count} sonuç bulundu",
