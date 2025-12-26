@@ -25,6 +25,12 @@
     "allCities": "Tüm Şehirler",
     "allDistances": "Tüm Mesafeler"
   },
+  "listing": {
+    "results": "{count} sonuç bulundu",
+    "sortedBy": "Sıralama: {sort}",
+    "prev": "Önceki",
+    "next": "Sonraki"
+  },
   "event": {
     "view": "Detaylar",
     "addToPlan": "Planıma Ekle",
@@ -92,7 +98,13 @@
       "edit": "Düzenle",
       "publish": "Yayınla",
       "delete": "Sil",
-      "unpublish": "Yayından Kaldır"
+      "unpublish": "Yayından Kaldır",
+      "status": {
+        "label": "Durum",
+        "all": "Tümü",
+        "published": "Yayında",
+        "draft": "Taslak"
+      }
     },
     "users": {
       "title": "Kullanıcılar",
@@ -112,7 +124,12 @@
       "defaultLanguage": "Varsayılan Dil",
       "defaultCurrency": "Varsayılan Para Birimi",
       "status": "Durum",
-      "members": "Üyeler"
+      "members": "Üyeler",
+      "sort": {
+        "label": "Sırala",
+        "createdAt": "Oluşturma tarihi",
+        "name": "Ada göre"
+      }
     },
     "events": {
       "title": "Tüm Etkinlikler"

@@ -25,6 +25,12 @@
     "allCities": "All Cities",
     "allDistances": "All Distances"
   },
+  "listing": {
+    "results": "{count} results",
+    "sortedBy": "Sort: {sort}",
+    "prev": "Previous",
+    "next": "Next"
+  },
   "event": {
     "view": "View Details",
     "addToPlan": "Add to Plan",
@@ -92,7 +98,13 @@
       "edit": "Edit",
       "publish": "Publish",
       "delete": "Delete",
-      "unpublish": "Unpublish"
+      "unpublish": "Unpublish",
+      "status": {
+        "label": "Status",
+        "all": "All",
+        "published": "Published",
+        "draft": "Draft"
+      }
     },
     "users": {
       "title": "Users",
@@ -112,7 +124,12 @@
       "defaultLanguage": "Default Language",
       "defaultCurrency": "Default Currency",
       "status": "Status",
-      "members": "Members"
+      "members": "Members",
+      "sort": {
+        "label": "Sort",
+        "createdAt": "Created date",
+        "name": "Name"
+      }
     },
     "events": {
       "title": "All Events"

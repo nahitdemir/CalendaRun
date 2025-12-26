@@ -29,9 +29,18 @@ interface FilterBarProps {
   onClear?: () => void; // Clear all filters (updates URL)
   cities?: string[];
   dateRangeError?: string | null;
+  showActions?: boolean;
 }
 
-export function FilterBar({ values, onChange, onApply, onClear, cities = [], dateRangeError }: FilterBarProps) {
+export function FilterBar({
+  values,
+  onChange,
+  onApply,
+  onClear,
+  cities = [],
+  dateRangeError,
+  showActions = true,
+}: FilterBarProps) {
   const { t } = useTranslation();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const { distances: availableDistances, isLoading: distancesLoading } = useDistances();
@@ -164,27 +173,28 @@ export function FilterBar({ values, onChange, onApply, onClear, cities = [], dat
         </div>
       )}
 
-      {/* Actions: Clear + Apply (mobile only) */}
-      <div className="mt-4 flex items-center justify-between">
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={handleClear} className="gap-1.5">
-            <X className="h-4 w-4" />
-            {t("filters.clear")}
-          </Button>
-        )}
-        {isMobile && onApply && (
-          <Button
-            variant="accent"
-            size="sm"
-            onClick={onApply}
-            className="ml-auto gap-1.5"
-            disabled={!!dateRangeError}
-          >
-            <Check className="h-4 w-4" />
-            {t("filters.apply")}
-          </Button>
-        )}
-      </div>
+      {showActions && (
+        <div className="mt-4 flex items-center justify-between">
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={handleClear} className="gap-1.5">
+              <X className="h-4 w-4" />
+              {t("filters.clear")}
+            </Button>
+          )}
+          {isMobile && onApply && (
+            <Button
+              variant="accent"
+              size="sm"
+              onClick={onApply}
+              className="ml-auto gap-1.5"
+              disabled={!!dateRangeError}
+            >
+              <Check className="h-4 w-4" />
+              {t("filters.apply")}
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
