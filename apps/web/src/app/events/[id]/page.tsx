@@ -1,16 +1,26 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useTranslation } from "@/contexts/locale-context";
 import { useToast } from "@/components/ui/toast";
 import { useApiMutation } from "@/hooks/use-api-error";
-import { eventsApi, plansApi, Event, EventMilestone, ApiError } from "@/lib/api-client";
+import { eventsApi, plansApi, Event, EventMilestone, ApiError, PlanItem } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { DistanceBadge } from "@/components/distance-badge";
 import type { Distance } from "@/components/distance-badge";
 import { useDistances } from "@/hooks/use-distances";
@@ -30,6 +40,8 @@ import {
   Flag,
   Download,
   Plus,
+  Check,
+  Loader2,
   CalendarX,
   SearchX,
 } from "lucide-react";
@@ -79,6 +91,8 @@ export default function EventDetailPage({
   const toast = useToast();
   const { onError } = useApiMutation();
   const { kmToDistance } = useDistances();
+  const queryClient = useQueryClient();
+  const [isPlanActionLoading, setIsPlanActionLoading] = useState(false);
 
   // Fetch event
   const {
@@ -105,6 +119,21 @@ export default function EventDetailPage({
     enabled: !!id && !!event,
   });
 
+  // Fetch user plans to determine if event is already added
+  const { data: planItems } = useQuery({
+    queryKey: ["my-plans"],
+    queryFn: () => plansApi.list(),
+    enabled: isAuthenticated,
+    staleTime: 30 * 1000,
+  });
+
+  const planItem = useMemo(
+    () => planItems?.find((plan) => plan.eventId === id),
+    [planItems, id]
+  );
+
+  const isInPlan = !!planItem;
+
   // Parse distances from event (string or string[])
   const distances: Distance[] = useMemo(() => {
     return normalizeEventDistances(event?.distances, kmToDistance);
@@ -118,24 +147,83 @@ export default function EventDetailPage({
     }).format(new Date(dateStr));
   };
 
+  const addPlanToCache = useCallback(
+    (plan: PlanItem) => {
+      queryClient.setQueryData<PlanItem[]>(["my-plans"], (prev) => {
+        if (!prev) return [plan];
+        if (prev.some((item) => item.id === plan.id || item.eventId === plan.eventId)) {
+          return prev;
+        }
+        return [...prev, plan];
+      });
+    },
+    [queryClient]
+  );
+
+  const removePlanFromCache = useCallback(
+    (planId: string) => {
+      queryClient.setQueryData<PlanItem[]>(["my-plans"], (prev) => {
+        if (!prev) return prev;
+        return prev.filter((item) => item.id !== planId);
+      });
+    },
+    [queryClient]
+  );
+
+  const removePlanItem = useCallback(
+    async (planId: string, options?: { showToast?: boolean }) => {
+      try {
+        await plansApi.delete(planId);
+        removePlanFromCache(planId);
+        if (options?.showToast !== false) {
+          toast.success(t("toast.removedFromPlan"));
+        }
+      } catch (err) {
+        onError(err);
+      }
+    },
+    [removePlanFromCache, toast, t, onError]
+  );
+
   // Add to plan
-  const handleAddToPlan = async () => {
+  const handleAddToPlan = useCallback(async () => {
     if (!isAuthenticated) {
       login();
       return;
     }
 
+    setIsPlanActionLoading(true);
     try {
-      await plansApi.create(id);
-      toast.success(t("toast.addedToPlan"));
+      const created = await plansApi.create(id);
+      addPlanToCache(created);
+      toast.success(t("toast.addedToPlan"), undefined, {
+        label: t("common.undo"),
+        onClick: () => {
+          void removePlanItem(created.id, { showToast: false });
+        },
+      });
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        toast.error(t("toast.alreadyInPlan"));
-      } else {
-        onError(err);
+        queryClient.invalidateQueries({ queryKey: ["my-plans"] });
+        toast.info(t("toast.alreadyInPlan"));
+        return;
       }
+      onError(err);
+    } finally {
+      setIsPlanActionLoading(false);
     }
-  };
+  }, [isAuthenticated, login, plansApi, id, addPlanToCache, toast, t, removePlanItem, queryClient, onError]);
+
+  const handleRemoveFromPlan = useCallback(() => {
+    if (!planItem) {
+      queryClient.invalidateQueries({ queryKey: ["my-plans"] });
+      return;
+    }
+    setIsPlanActionLoading(true);
+    void removePlanItem(planItem.id).finally(() => {
+      setIsPlanActionLoading(false);
+    });
+  }, [planItem, queryClient, removePlanItem]);
 
   // Add to calendar (download ICS)
   const handleAddToCalendar = () => {
@@ -291,10 +379,51 @@ export default function EventDetailPage({
 
       {/* Actions (desktop right / mobile stacked) */}
       <div className="mb-8 flex flex-col gap-3 sm:flex-row">
-        <Button variant="accent" size="lg" onClick={handleAddToPlan} className="gap-2">
-          <Plus className="h-4 w-4" />
-          {t("event.addToPlan")}
-        </Button>
+        {isInPlan ? (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="lg" className="gap-2" disabled={isPlanActionLoading}>
+                {isPlanActionLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                {t("event.addedToPlan")}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>{t("event.removeFromPlanTitle")}</DialogTitle>
+                <DialogDescription>{t("event.removeFromPlanDesc")}</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="ghost">{t("common.cancel")}</Button>
+                </DialogClose>
+                <DialogClose asChild>
+                  <Button variant="destructive" onClick={handleRemoveFromPlan} disabled={isPlanActionLoading}>
+                    {t("event.removeFromPlan")}
+                  </Button>
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <Button
+            variant="accent"
+            size="lg"
+            onClick={handleAddToPlan}
+            className="gap-2"
+            disabled={isPlanActionLoading}
+          >
+            {isPlanActionLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            {t("event.addToPlan")}
+          </Button>
+        )}
 
         <Button variant="outline" size="lg" onClick={handleAddToCalendar} className="gap-2">
           <Download className="h-4 w-4" />

@@ -23,13 +23,25 @@ public class DeletePlanHandler : ICommandHandler<DeletePlanCommand, Result>
         if (planItem == null)
             return Result.NotFound("Plan not found");
 
-        // Tenant admin can only delete their own tenant's plans
-        if (!command.IsSuperAdmin)
-        {
-            if (!command.TenantId.HasValue)
-                return Result.Failure("Tenant ID is required");
+        var canDeleteAnyInTenant = command.IsSuperAdmin || command.IsTenantAdmin;
 
-            if (planItem.TenantId != command.TenantId)
+        if (canDeleteAnyInTenant)
+        {
+            if (!command.IsSuperAdmin)
+            {
+                if (!command.TenantId.HasValue)
+                    return Result.Failure("Tenant ID is required");
+
+                if (planItem.TenantId != command.TenantId)
+                    return Result.Forbidden();
+            }
+        }
+        else
+        {
+            if (planItem.UserId != command.UserId)
+                return Result.Forbidden();
+
+            if (planItem.TenantId.HasValue && command.TenantId.HasValue && planItem.TenantId != command.TenantId)
                 return Result.Forbidden();
         }
 

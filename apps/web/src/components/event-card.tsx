@@ -1,10 +1,30 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTranslation } from "@/contexts/locale-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { DistanceBadge, Distance } from "@/components/distance-badge";
-import { Calendar, MapPin, ArrowRight, Flag, ExternalLink } from "lucide-react";
+import { eventsApi } from "@/lib/api-client";
+import {
+  Calendar,
+  MapPin,
+  ArrowRight,
+  Flag,
+  ExternalLink,
+  CheckCircle2,
+  ChevronDown,
+  List,
+  Trash2,
+  Loader2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface EventCardData {
@@ -22,6 +42,10 @@ interface EventCardProps {
   event: EventCardData;
   onView?: () => void;
   onAddToPlan?: () => void;
+  onRemoveFromPlan?: () => void;
+  isInPlan?: boolean;
+  planItemId?: string;
+  isPlanActionLoading?: boolean;
   showActions?: boolean;
   className?: string;
 }
@@ -30,10 +54,15 @@ export function EventCard({
   event,
   onView,
   onAddToPlan,
+  onRemoveFromPlan,
+  isInPlan = false,
+  planItemId,
+  isPlanActionLoading = false,
   showActions = true,
   className,
 }: EventCardProps) {
   const { t, locale } = useTranslation();
+  const router = useRouter();
 
   const formattedDate = new Intl.DateTimeFormat(
     locale === "tr" ? "tr-TR" : "en-US",
@@ -65,6 +94,91 @@ export function EventCard({
 
   const status = statusConfig[event.registrationStatus];
   const StatusIcon = status.icon;
+
+  const handleViewPlan = () => {
+    router.push("/plan");
+  };
+
+  const handleAddToCalendar = () => {
+    const icsUrl = eventsApi.getIcsUrl(event.id);
+    window.open(icsUrl, "_blank");
+  };
+
+  const planAction = onAddToPlan ? (
+    isInPlan ? (
+      <div
+        data-state="added"
+        className={cn(
+          "inline-flex items-center transition-all duration-200",
+          "data-[state=added]:animate-in data-[state=added]:fade-in-0 data-[state=added]:zoom-in-95"
+        )}
+      >
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isPlanActionLoading}
+          className={cn(
+            "rounded-r-none border-accent/50 text-accent hover:bg-accent/10",
+            "gap-1.5"
+          )}
+        >
+          {isPlanActionLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <CheckCircle2 className="h-3 w-3" />
+          )}
+          {t("event.addedToPlan")}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isPlanActionLoading}
+              className={cn(
+                "-ml-px rounded-l-none border-accent/50 text-accent hover:bg-accent/10",
+                "px-2"
+              )}
+              aria-label={t("common.actions")}
+            >
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={handleViewPlan} disabled={isPlanActionLoading}>
+              <List className="mr-2 h-4 w-4" />
+              {t("event.viewPlan")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={handleAddToCalendar} disabled={isPlanActionLoading}>
+              <Calendar className="mr-2 h-4 w-4" />
+              {t("event.addToCalendar")}
+            </DropdownMenuItem>
+            {planItemId && onRemoveFromPlan && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={onRemoveFromPlan} disabled={isPlanActionLoading}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {t("event.removeFromPlan")}
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    ) : (
+      <Button
+        variant="accent"
+        size="sm"
+        onClick={onAddToPlan}
+        disabled={isPlanActionLoading}
+      >
+        {isPlanActionLoading ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : null}
+        {t("event.addToPlan")}
+      </Button>
+    )
+  ) : null;
 
   return (
     <article
@@ -120,11 +234,9 @@ export function EventCard({
                 <ExternalLink className="h-3 w-3" />
               </a>
             </Button>
-          ) : onAddToPlan ? (
-            <Button variant="accent" size="sm" onClick={onAddToPlan}>
-              {t("event.addToPlan")}
-            </Button>
           ) : null}
+
+          {planAction}
 
           {onView && (
             <Button variant="ghost" size="sm" onClick={onView} className="gap-1.5">

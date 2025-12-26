@@ -2,12 +2,12 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useTranslation } from "@/contexts/locale-context";
 import { useToast } from "@/components/ui/toast";
 import { useApiMutation } from "@/hooks/use-api-error";
-import { eventsApi, plansApi, Event, PagedResult } from "@/lib/api-client";
+import { eventsApi, plansApi, Event, PagedResult, PlanItem, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { FilterBar, FilterValues } from "@/components/filter-bar";
@@ -37,6 +37,18 @@ function distancesToString(distances: Distance[], distanceToKm: Record<Distance,
   return distances.map((d) => distanceToKm[d]).join(",");
 }
 
+function setQueryParam(params: URLSearchParams, key: string, value: string) {
+  if (value) {
+    params.set(key, value);
+  } else {
+    params.delete(key);
+  }
+}
+
+function removeQueryParam(params: URLSearchParams, key: string) {
+  params.delete(key);
+}
+
 export default function ExplorePage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -46,6 +58,73 @@ export default function ExplorePage() {
   const toast = useToast();
   const { onError } = useApiMutation();
   const { distances: availableDistances, kmToDistance, distanceToKm } = useDistances();
+  const queryClient = useQueryClient();
+  const [pendingPlanActions, setPendingPlanActions] = useState<Record<string, boolean>>({});
+
+  const { data: planItems } = useQuery({
+    queryKey: ["my-plans"],
+    queryFn: () => plansApi.list(),
+    enabled: isAuthenticated,
+    staleTime: 30 * 1000,
+  });
+
+  const planIdByEventId = useMemo(() => {
+    const map = new Map<string, string>();
+    planItems?.forEach((plan) => {
+      map.set(plan.eventId, plan.id);
+    });
+    return map;
+  }, [planItems]);
+
+  const setPlanActionPending = useCallback((eventId: string, isPending: boolean) => {
+    setPendingPlanActions((prev) => {
+      const next = { ...prev };
+      if (isPending) {
+        next[eventId] = true;
+      } else {
+        delete next[eventId];
+      }
+      return next;
+    });
+  }, []);
+
+  const addPlanToCache = useCallback(
+    (plan: PlanItem) => {
+      queryClient.setQueryData<PlanItem[]>(["my-plans"], (prev) => {
+        if (!prev) return [plan];
+        if (prev.some((item) => item.id === plan.id || item.eventId === plan.eventId)) {
+          return prev;
+        }
+        return [...prev, plan];
+      });
+    },
+    [queryClient]
+  );
+
+  const removePlanFromCache = useCallback(
+    (planId: string) => {
+      queryClient.setQueryData<PlanItem[]>(["my-plans"], (prev) => {
+        if (!prev) return prev;
+        return prev.filter((item) => item.id !== planId);
+      });
+    },
+    [queryClient]
+  );
+
+  const removePlanItem = useCallback(
+    async (planId: string, options?: { showToast?: boolean }) => {
+      try {
+        await plansApi.delete(planId);
+        removePlanFromCache(planId);
+        if (options?.showToast !== false) {
+          toast.success(t("toast.removedFromPlan"));
+        }
+      } catch (err) {
+        onError(err);
+      }
+    },
+    [removePlanFromCache, toast, t, onError]
+  );
 
   // Read filters from URL query params (single source of truth)
   const filtersFromUrl = useMemo<FilterValues>(() => {
@@ -82,33 +161,38 @@ export default function ExplorePage() {
 
       // Update or remove params
       if (updates.city !== undefined) {
-        if (updates.city) params.set("city", updates.city);
-        else params.delete("city");
+        setQueryParam(params, "city", updates.city);
       }
       if (updates.from !== undefined) {
-        if (updates.from) params.set("from", updates.from);
-        else params.delete("from");
+        setQueryParam(params, "from", updates.from);
       }
       if (updates.to !== undefined) {
-        if (updates.to) params.set("to", updates.to);
-        else params.delete("to");
+        setQueryParam(params, "to", updates.to);
       }
       if (updates.distanceKm !== undefined) {
-        if (updates.distanceKm) params.set("distanceKm", updates.distanceKm);
-        else params.delete("distanceKm");
+        setQueryParam(params, "distanceKm", updates.distanceKm);
       }
       if (updates.page !== undefined) {
         if (updates.page > 1) params.set("page", updates.page.toString());
-        else params.delete("page");
+        else removeQueryParam(params, "page");
       }
       if (updates.pageSize !== undefined) {
         if (updates.pageSize !== 20) params.set("pageSize", updates.pageSize.toString());
-        else params.delete("pageSize");
+        else removeQueryParam(params, "pageSize");
       }
 
       // Reset to page 1 when filters change (except when explicitly setting page)
       if (updates.page === undefined && (updates.city !== undefined || updates.from !== undefined || updates.to !== undefined || updates.distanceKm !== undefined)) {
         params.delete("page");
+      }
+
+      if (process.env.NODE_ENV === "development") {
+        if (updates.from === "" && params.get("from") !== null) {
+          console.warn("[Explore] Expected 'from' to be removed from URL.");
+        }
+        if (updates.to === "" && params.get("to") !== null) {
+          console.warn("[Explore] Expected 'to' to be removed from URL.");
+        }
       }
 
       // Use replace instead of push to avoid adding to history stack when clearing
@@ -174,6 +258,7 @@ export default function ExplorePage() {
   const applyFilters = useCallback(
     (newFilters: FilterValues, immediate = false) => {
       setPendingFilters(newFilters);
+      const distanceKmValue = newFilters.distances.length > 0 ? distancesToString(newFilters.distances, distanceToKm) : "";
 
       if (immediate) {
         if (debounceTimer) {
@@ -181,20 +266,20 @@ export default function ExplorePage() {
           setDebounceTimer(null);
         }
         updateQueryParams({
-          city: newFilters.city || undefined,
-          from: newFilters.dateFrom || undefined,
-          to: newFilters.dateTo || undefined,
-          distanceKm: newFilters.distances.length > 0 ? distancesToString(newFilters.distances, distanceToKm) : undefined,
+          city: newFilters.city,
+          from: newFilters.dateFrom,
+          to: newFilters.dateTo,
+          distanceKm: distanceKmValue,
         });
       } else {
         // Desktop: debounce
         if (debounceTimer) clearTimeout(debounceTimer);
         const timer = setTimeout(() => {
           updateQueryParams({
-            city: newFilters.city || undefined,
-            from: newFilters.dateFrom || undefined,
-            to: newFilters.dateTo || undefined,
-            distanceKm: newFilters.distances.length > 0 ? distancesToString(newFilters.distances, distanceToKm) : undefined,
+            city: newFilters.city,
+            from: newFilters.dateFrom,
+            to: newFilters.dateTo,
+            distanceKm: distanceKmValue,
           });
         }, 400);
         setDebounceTimer(timer);
@@ -275,19 +360,36 @@ export default function ExplorePage() {
   });
 
   // Add to plan mutation
-  const handleAddToPlan = async (eventId: string) => {
-    if (!isAuthenticated) {
-      login();
-      return;
-    }
+  const handleAddToPlan = useCallback(
+    async (eventId: string) => {
+      if (!isAuthenticated) {
+        login();
+        return;
+      }
 
-    try {
-      await plansApi.create(eventId);
-      toast.success(t("toast.addedToPlan"));
-    } catch (err) {
-      onError(err);
-    }
-  };
+      setPlanActionPending(eventId, true);
+      try {
+        const created = await plansApi.create(eventId);
+        addPlanToCache(created);
+        toast.success(t("toast.addedToPlan"), undefined, {
+          label: t("common.undo"),
+          onClick: () => {
+            void removePlanItem(created.id, { showToast: false });
+          },
+        });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409) {
+          queryClient.invalidateQueries({ queryKey: ["my-plans"] });
+          toast.info(t("toast.alreadyInPlan"));
+          return;
+        }
+        onError(err);
+      } finally {
+        setPlanActionPending(eventId, false);
+      }
+    },
+    [isAuthenticated, login, setPlanActionPending, addPlanToCache, toast, t, removePlanItem, queryClient, onError]
+  );
 
   // Map events to card data
   const eventCards = useMemo(() => {
@@ -317,14 +419,25 @@ export default function ExplorePage() {
 
   // Clear all filters
   const handleClearFilters = useCallback(() => {
-    updateQueryParams({
-      city: undefined,
-      from: undefined,
-      to: undefined,
-      distanceKm: undefined,
-      page: 1,
-    });
-  }, [updateQueryParams]);
+    clearFilters();
+  }, [clearFilters]);
+
+  const handleRemoveFromPlan = useCallback(
+    async (eventId: string) => {
+      const planId = planIdByEventId.get(eventId);
+      if (!planId) {
+        queryClient.invalidateQueries({ queryKey: ["my-plans"] });
+        return;
+      }
+      setPlanActionPending(eventId, true);
+      try {
+        await removePlanItem(planId);
+      } finally {
+        setPlanActionPending(eventId, false);
+      }
+    },
+    [planIdByEventId, queryClient, removePlanItem, setPlanActionPending]
+  );
 
   // Handle pagination
   const handlePageChange = useCallback(
@@ -507,6 +620,10 @@ export default function ExplorePage() {
                 event={event}
                 onView={() => router.push(`/events/${event.id}`)}
                 onAddToPlan={() => handleAddToPlan(event.id)}
+                onRemoveFromPlan={() => handleRemoveFromPlan(event.id)}
+                isInPlan={planIdByEventId.has(event.id)}
+                planItemId={planIdByEventId.get(event.id)}
+                isPlanActionLoading={!!pendingPlanActions[event.id]}
               />
             ))}
           </div>

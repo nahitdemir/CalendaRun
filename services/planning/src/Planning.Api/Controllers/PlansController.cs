@@ -81,7 +81,7 @@ public class PlansController : ControllerBase
     }
 
     /// <summary>
-    /// Delete a plan (admin only)
+    /// Delete a plan
     /// </summary>
     [HttpDelete("{id:guid}")]
     [Authorize]
@@ -90,13 +90,10 @@ public class PlansController : ControllerBase
         var userId = GetUserId();
         var role = GetTenantRole();
         var isSuperAdmin = IsSuperAdmin();
+        var isTenantAdmin = role == nameof(TenantRole.TenantAdmin);
 
         if (!userId.HasValue)
             return Unauthorized();
-
-        // Only tenant_admin or super_admin can delete
-        if (!isSuperAdmin && role != nameof(TenantRole.TenantAdmin))
-            return Forbid();
 
         var command = new DeletePlanCommand(
             id,
@@ -104,6 +101,7 @@ public class PlansController : ControllerBase
             userId.Value,
             GetUserEmail(),
             isSuperAdmin,
+            isTenantAdmin,
             HttpContext.TraceIdentifier
         );
 

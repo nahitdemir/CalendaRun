@@ -28,6 +28,11 @@
   "event": {
     "view": "View Details",
     "addToPlan": "Add to Plan",
+    "addedToPlan": "In Your Plan",
+    "viewPlan": "View Plan",
+    "removeFromPlan": "Remove from plan",
+    "removeFromPlanTitle": "Remove from your plan?",
+    "removeFromPlanDesc": "Are you sure you want to remove this event from your plan?",
     "addToCalendar": "Add to Calendar",
     "registration": "Registration",
     "organizer": "Organizer",
@@ -141,6 +146,7 @@
     "save": "Save",
     "cancel": "Cancel",
     "confirm": "Confirm",
+    "undo": "Undo",
     "search": "Search",
     "actions": "Actions",
     "all": "All",
@@ -156,4 +162,3 @@
     "ultra": "Ultra"
   }
 }
-

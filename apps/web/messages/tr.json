@@ -28,6 +28,11 @@
   "event": {
     "view": "Detaylar",
     "addToPlan": "Planıma Ekle",
+    "addedToPlan": "Planında",
+    "viewPlan": "Planı Gör",
+    "removeFromPlan": "Planımdan çıkar",
+    "removeFromPlanTitle": "Planından çıkarılsın mı?",
+    "removeFromPlanDesc": "Bu etkinliği planından kaldırmak istediğine emin misin?",
     "addToCalendar": "Takvime Ekle",
     "registration": "Kayıt",
     "organizer": "Organizatör",
@@ -141,6 +146,7 @@
     "save": "Kaydet",
     "cancel": "İptal",
     "confirm": "Onayla",
+    "undo": "Geri al",
     "search": "Ara",
     "actions": "İşlemler",
     "all": "Tümü",
@@ -156,4 +162,3 @@
     "ultra": "Ultra"
   }
 }
-

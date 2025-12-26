@@ -290,6 +290,16 @@ export interface PlanItem {
   event?: Event;
 }
 
+export interface CreatePlanResponse {
+  planItemId: string;
+  tenantId?: string | null;
+  userId: string;
+  eventId: string;
+  state: PlanState | number;
+  createdAt: string;
+  timezone: string;
+}
+
 export interface EventFilters {
   city?: string;
   dateFrom?: string;
@@ -401,7 +411,21 @@ export const eventsApi = {
 export const plansApi = {
   list: () => api.get<PlanItem[]>("/api/plan"),
 
-  create: (eventId: string) => api.post<PlanItem>("/api/plan", { eventId }),
+  create: async (eventId: string): Promise<PlanItem> => {
+    const response = await api.post<PlanItem | CreatePlanResponse>("/api/plan", { eventId });
+    if ("planItemId" in response) {
+      return {
+        id: response.planItemId,
+        eventId: response.eventId,
+        userId: response.userId,
+        tenantId: response.tenantId ?? undefined,
+        state: response.state,
+        createdAt: response.createdAt,
+        timezone: response.timezone,
+      };
+    }
+    return response;
+  },
 
   updateState: (id: string, state: "Registered" | "Completed") =>
     api.patch<PlanItem>(`/api/plan/${id}`, { state }),

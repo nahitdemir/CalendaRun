@@ -103,9 +103,11 @@ builder.Services.AddMassTransit(x =>
 });
 
 // ==================== HEALTH CHECKS ====================
+builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMQ"));
+
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString!, name: "postgres", tags: new[] { "db", "planning" })
-    .AddRabbitMQ("amqp://guest:guest@localhost:5672", name: "rabbitmq", tags: new[] { "messaging" })
+    .AddCheck<RabbitMqHealthCheck>("rabbitmq", tags: new[] { "messaging" })
     .AddCheck<OutboxHealthCheck>("outbox", tags: new[] { "outbox", "planning" });
 
 // ==================== BACKGROUND SERVICES ====================
