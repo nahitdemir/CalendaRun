@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useTranslation } from "@/contexts/locale-context";
@@ -16,6 +16,17 @@ import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  ActiveFiltersBar,
+  ListPagination,
+  ListToolbar,
+  PageShell,
+  ResultsHeader,
+} from "@/components/listing";
+import { DistanceBadge, Distance } from "@/components/distance-badge";
+import { useDistances } from "@/hooks/use-distances";
+import { useListQueryParams } from "@/hooks/use-list-query-params";
+import { normalizeEventDistances } from "@/lib/normalizers/event";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -24,6 +35,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Calendar,
   Plus,
@@ -35,12 +53,54 @@ import {
   Globe,
 } from "lucide-react";
 
+function parseDistances(distStr: string | null, kmToDistance: Record<number, Distance>): Distance[] {
+  if (!distStr) return [];
+  return distStr
+    .split(",")
+    .map((d) => d.trim())
+    .map((d) => {
+      const km = parseInt(d, 10);
+      return kmToDistance[km];
+    })
+    .filter((d): d is Distance => d !== undefined);
+}
+
+function distancesToString(distances: Distance[], distanceToKm: Record<Distance, number>): string {
+  return distances.map((d) => distanceToKm[d]).join(",");
+}
+
 function AdminEventsContent() {
   const { selectedTenant, isSuperAdmin } = useAuth();
   const { t, locale } = useTranslation();
   const toast = useToast();
   const { onError } = useApiMutation();
   const queryClient = useQueryClient();
+  const { kmToDistance, distanceToKm, distances: availableDistances } = useDistances();
+  const {
+    getParam,
+    getNumberParam,
+    updateParams,
+    clearParams,
+    hasActiveFilters,
+  } = useListQueryParams({
+    filterKeys: ["city", "from", "to", "distanceKm", "status"],
+    defaults: { status: "all", pageSize: 20 },
+    debounceMs: 400,
+  });
+
+  const cityFilter = getParam("city");
+  const fromFilter = getParam("from");
+  const toFilter = getParam("to");
+  const statusParam = getParam("status", "all");
+  const statusFilter =
+    statusParam === "published" || statusParam === "draft" ? statusParam : "all";
+  const selectedDistances = useMemo(
+    () => parseDistances(getParam("distanceKm"), kmToDistance),
+    [getParam, kmToDistance]
+  );
+
+  const page = getNumberParam("page", 1);
+  const pageSize = getNumberParam("pageSize", 20);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
@@ -73,11 +133,21 @@ function AdminEventsContent() {
   };
 
   // Fetch events
-  const { data: events, isLoading } = useQuery({
+  const {
+    data: events,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["admin-events", selectedTenant?.tenantId],
     queryFn: () => adminEventsApi.list(),
     enabled: !!selectedTenant?.tenantId,
   });
+
+  useEffect(() => {
+    if (error) {
+      onError(error);
+    }
+  }, [error, onError]);
 
   // Create mutation
   const createMutation = useMutation({
@@ -173,9 +243,145 @@ function AdminEventsContent() {
     }
   };
 
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", {
+        dateStyle: "medium",
+      }),
+    [locale]
+  );
+
+  const filteredEvents = useMemo(() => {
+    if (!events) return [];
+    const fromDate = fromFilter ? new Date(fromFilter) : null;
+    const toDate = toFilter ? new Date(toFilter) : null;
+    const toDateEnd = toDate ? new Date(toDate) : null;
+    if (toDateEnd) {
+      toDateEnd.setHours(23, 59, 59, 999);
+    }
+
+    return events.filter((event) => {
+      if (cityFilter) {
+        const haystack = `${event.city}`.toLowerCase();
+        if (!haystack.includes(cityFilter.toLowerCase())) return false;
+      }
+
+      if (fromDate) {
+        const eventDate = new Date(event.startAt);
+        if (eventDate < fromDate) return false;
+      }
+
+      if (toDateEnd) {
+        const eventDate = new Date(event.startAt);
+        if (eventDate > toDateEnd) return false;
+      }
+
+      if (statusFilter === "published" && !event.isPublished) return false;
+      if (statusFilter === "draft" && event.isPublished) return false;
+
+      if (selectedDistances.length > 0) {
+        const eventDistances = normalizeEventDistances(event.distances, kmToDistance);
+        const matches = selectedDistances.some((distance) =>
+          eventDistances.includes(distance)
+        );
+        if (!matches) return false;
+      }
+
+      return true;
+    });
+  }, [
+    cityFilter,
+    events,
+    fromFilter,
+    kmToDistance,
+    selectedDistances,
+    statusFilter,
+    toFilter,
+  ]);
+
+  const paginatedEvents = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredEvents.slice(start, start + pageSize);
+  }, [filteredEvents, page, pageSize]);
+
+  const activeFilters = useMemo(() => {
+    const filters: { key: string; label: string; onRemove: () => void }[] = [];
+
+    if (cityFilter) {
+      filters.push({
+        key: "city",
+        label: `${t("filters.city")}: ${cityFilter}`,
+        onRemove: () => updateParams({ city: "" }),
+      });
+    }
+
+    if (fromFilter) {
+      filters.push({
+        key: "from",
+        label: `${t("filters.from")}: ${dateFormatter.format(new Date(fromFilter))}`,
+        onRemove: () => updateParams({ from: "" }),
+      });
+    }
+
+    if (toFilter) {
+      filters.push({
+        key: "to",
+        label: `${t("filters.to")}: ${dateFormatter.format(new Date(toFilter))}`,
+        onRemove: () => updateParams({ to: "" }),
+      });
+    }
+
+    if (selectedDistances.length > 0) {
+      selectedDistances.forEach((distance) => {
+        filters.push({
+          key: `distance-${distance}`,
+          label: t(`distances.${distance}`),
+          onRemove: () => {
+            const remaining = selectedDistances.filter((d) => d !== distance);
+            const distanceKmValue =
+              remaining.length > 0 ? distancesToString(remaining, distanceToKm) : "";
+            updateParams({ distanceKm: distanceKmValue });
+          },
+        });
+      });
+    }
+
+    if (statusFilter !== "all") {
+      filters.push({
+        key: "status",
+        label:
+          statusFilter === "published"
+            ? t("admin.events.status.published")
+            : t("admin.events.status.draft"),
+        onRemove: () => updateParams({ status: "all" }),
+      });
+    }
+
+    return filters;
+  }, [
+    cityFilter,
+    dateFormatter,
+    distanceToKm,
+    fromFilter,
+    selectedDistances,
+    statusFilter,
+    t,
+    toFilter,
+    updateParams,
+  ]);
+
+  const handleDistanceToggle = (distance: Distance) => {
+    const nextDistances = selectedDistances.includes(distance)
+      ? selectedDistances.filter((d) => d !== distance)
+      : [...selectedDistances, distance];
+    const distanceKmValue =
+      nextDistances.length > 0 ? distancesToString(nextDistances, distanceToKm) : "";
+    updateParams({ distanceKm: distanceKmValue });
+  };
+
   if (isLoading) {
     return (
-      <div className="container-app space-y-6">
+      <PageShell>
         <div className="flex items-center justify-between">
           <Skeleton className="h-10 w-48" />
           <Skeleton className="h-10 w-32" />
@@ -188,12 +394,12 @@ function AdminEventsContent() {
             </div>
           ))}
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="container-app space-y-6">
+    <PageShell>
       <PageHeader
         title={t("admin.events.title")}
         subtitle={selectedTenant?.tenantName}
@@ -372,24 +578,91 @@ function AdminEventsContent() {
           </Dialog>
         }
       />
+      <ListToolbar
+        left={
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              value={cityFilter}
+              onChange={(e) => updateParams({ city: e.target.value })}
+              placeholder={t("filters.city")}
+              className="h-9 w-[160px]"
+            />
+            <Input
+              type="date"
+              value={fromFilter}
+              onChange={(e) => updateParams({ from: e.target.value })}
+              className="h-9 w-[150px]"
+            />
+            <Input
+              type="date"
+              value={toFilter}
+              onChange={(e) => updateParams({ to: e.target.value })}
+              className="h-9 w-[150px]"
+            />
+            <Select value={statusFilter} onValueChange={(value) => updateParams({ status: value })}>
+              <SelectTrigger className="h-9 w-[160px]">
+                <SelectValue placeholder={t("admin.events.status.label")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("admin.events.status.all")}</SelectItem>
+                <SelectItem value="published">{t("admin.events.status.published")}</SelectItem>
+                <SelectItem value="draft">{t("admin.events.status.draft")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex flex-wrap items-center gap-2">
+              {availableDistances.map((distance) => (
+                <DistanceBadge
+                  key={distance}
+                  distance={distance}
+                  selected={selectedDistances.includes(distance)}
+                  onClick={() => handleDistanceToggle(distance)}
+                  size="sm"
+                />
+              ))}
+            </div>
+          </div>
+        }
+        showClear={hasActiveFilters}
+        clearLabel={t("filters.clear")}
+        onClear={() => clearParams()}
+      />
 
-      {events && events.length === 0 ? (
+      <ActiveFiltersBar
+        filters={activeFilters}
+        onClearAll={() => clearParams()}
+        clearLabel={t("filters.clear")}
+      />
+
+      <ResultsHeader count={filteredEvents.length} />
+
+      {filteredEvents.length === 0 ? (
         <EmptyState
           variant="events"
-          title={t("empty.noEventsTitle")}
+          title={
+            hasActiveFilters ? t("empty.noResultsTitle") : t("empty.noEventsTitle")
+          }
           description={
-            locale === "tr"
+            hasActiveFilters
+              ? t("empty.noResultsDesc")
+              : locale === "tr"
               ? "İlk etkinliğinizi oluşturarak başlayın"
               : "Create your first event to get started"
           }
-          action={{
-            label: t("admin.events.create"),
-            onClick: () => setIsCreateOpen(true),
-          }}
+          action={
+            hasActiveFilters
+              ? {
+                  label: t("filters.clear"),
+                  onClick: () => clearParams(),
+                }
+              : {
+                  label: t("admin.events.create"),
+                  onClick: () => setIsCreateOpen(true),
+                }
+          }
         />
       ) : (
         <div className="space-y-4">
-          {events?.map((event) => (
+          {paginatedEvents.map((event) => (
             <article
               key={event.id}
               className="group rounded-2xl border bg-card p-4 shadow-sm transition-all hover:shadow-md md:p-5"
@@ -465,7 +738,13 @@ function AdminEventsContent() {
           ))}
         </div>
       )}
-    </div>
+      <ListPagination
+        page={page}
+        pageSize={pageSize}
+        total={filteredEvents.length}
+        onPageChange={(nextPage) => updateParams({ page: nextPage }, { resetPage: false })}
+      />
+    </PageShell>
   );
 }
 
