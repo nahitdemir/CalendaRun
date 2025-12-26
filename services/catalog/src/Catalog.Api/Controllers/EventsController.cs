@@ -7,6 +7,7 @@ using Catalog.Application.Events.Commands;
 using Catalog.Application.Events.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text;
 
 namespace Catalog.Api.Controllers;
 
@@ -94,6 +95,25 @@ public class EventsController : ControllerBase
         var tenantId = GetTenantId();
         var result = await _getEventByIdHandler.HandleAsync(new GetEventByIdQuery(id, tenantId), ct);
         return ToActionResult(result, Ok);
+    }
+
+    /// <summary>
+    /// Get event as ICS calendar file
+    /// </summary>
+    [HttpGet("{id:guid}/ics")]
+    public async Task<IActionResult> GetEventIcs(Guid id, CancellationToken ct)
+    {
+        var tenantId = GetTenantId();
+        var result = await _getEventByIdHandler.HandleAsync(new GetEventByIdQuery(id, tenantId), ct);
+        if (!result.IsSuccess)
+        {
+            return ToActionResult(result, Ok);
+        }
+
+        var eventDto = result.Value!;
+        var icsContent = BuildIcs(eventDto);
+        var fileName = $"{Slugify(eventDto.Title)}.ics";
+        return File(Encoding.UTF8.GetBytes(icsContent), "text/calendar; charset=utf-8", fileName);
     }
 
     /// <summary>
@@ -277,6 +297,101 @@ public class EventsController : ControllerBase
             ResultErrorType.Conflict => Conflict(Calendarun.Common.Errors.ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
             _ => BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
+    }
+
+    private static string BuildIcs(EventDto eventDto)
+    {
+        var nowUtc = DateTime.UtcNow;
+        var startUtc = eventDto.StartAt.UtcDateTime;
+        var uid = $"{eventDto.Id}@calendarun";
+        var locationParts = new[] { eventDto.City, eventDto.CountryCode }
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .ToArray();
+        var location = locationParts.Length > 0 ? string.Join(", ", locationParts) : string.Empty;
+
+        var descriptionParts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(eventDto.Description))
+        {
+            descriptionParts.Add(eventDto.Description);
+        }
+        if (!string.IsNullOrWhiteSpace(eventDto.RegistrationUrl))
+        {
+            descriptionParts.Add($"Registration: {eventDto.RegistrationUrl}");
+        }
+        var description = string.Join("\n\n", descriptionParts);
+
+        var builder = new StringBuilder();
+        builder.AppendLine("BEGIN:VCALENDAR");
+        builder.AppendLine("VERSION:2.0");
+        builder.AppendLine("PRODID:-//Calendarun//Events//EN");
+        builder.AppendLine("CALSCALE:GREGORIAN");
+        builder.AppendLine("METHOD:PUBLISH");
+        builder.AppendLine("BEGIN:VEVENT");
+        builder.AppendLine($"UID:{uid}");
+        builder.AppendLine($"DTSTAMP:{FormatUtc(nowUtc)}");
+        builder.AppendLine($"DTSTART:{FormatUtc(startUtc)}");
+        builder.AppendLine($"SUMMARY:{EscapeIcs(eventDto.Title)}");
+        if (!string.IsNullOrWhiteSpace(location))
+        {
+            builder.AppendLine($"LOCATION:{EscapeIcs(location)}");
+        }
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            builder.AppendLine($"DESCRIPTION:{EscapeIcs(description)}");
+        }
+        if (!string.IsNullOrWhiteSpace(eventDto.RegistrationUrl))
+        {
+            builder.AppendLine($"URL:{EscapeIcs(eventDto.RegistrationUrl)}");
+        }
+        builder.AppendLine("END:VEVENT");
+        builder.AppendLine("END:VCALENDAR");
+
+        return builder.ToString();
+    }
+
+    private static string FormatUtc(DateTime dateTime)
+    {
+        return dateTime.ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'");
+    }
+
+    private static string EscapeIcs(string value)
+    {
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("\r", string.Empty)
+            .Replace("\n", "\\n")
+            .Replace(";", "\\;")
+            .Replace(",", "\\,");
+    }
+
+    private static string Slugify(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "event";
+        }
+
+        var builder = new StringBuilder();
+        var previousDash = false;
+
+        foreach (var ch in value.ToLowerInvariant())
+        {
+            if (ch <= 127 && char.IsLetterOrDigit(ch))
+            {
+                builder.Append(ch);
+                previousDash = false;
+                continue;
+            }
+
+            if (!previousDash)
+            {
+                builder.Append("-");
+                previousDash = true;
+            }
+        }
+
+        var slug = builder.ToString().Trim('-');
+        return string.IsNullOrWhiteSpace(slug) ? "event" : slug;
     }
 }
 

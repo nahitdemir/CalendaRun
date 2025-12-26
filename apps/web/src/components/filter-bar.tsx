@@ -71,7 +71,12 @@ export function FilterBar({
           {t("filters.title")}
         </span>
         {showClearAction && (
-          <Button variant="ghost" size="sm" onClick={onClear} className="gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClear}
+            className="h-9 gap-1.5"
+          >
             <RotateCcw className="h-4 w-4" />
             {clearLabel || t("filters.clear")}
           </Button>

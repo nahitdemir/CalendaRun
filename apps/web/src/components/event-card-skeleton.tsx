@@ -34,8 +34,8 @@ export function EventCardSkeleton({ className }: EventCardSkeletonProps) {
 
       {/* Right: Actions */}
       <div className="mt-4 flex flex-wrap items-center gap-2 md:mt-0 md:flex-col md:items-end">
-        <Skeleton className="h-9 w-24 rounded-lg" />
-        <Skeleton className="h-9 w-20 rounded-lg" />
+        <Skeleton className="h-10 w-28 rounded-lg" />
+        <Skeleton className="h-10 w-24 rounded-lg" />
       </div>
     </div>
   );

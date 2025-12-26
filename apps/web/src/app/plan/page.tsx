@@ -11,7 +11,6 @@ import { normalizePlanState } from "@/lib/normalizers/plan";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import {
-  ActiveFiltersBar,
   ListPagination,
   ListToolbar,
   PageShell,
@@ -40,7 +39,7 @@ function PlanPageContent() {
   const { t, locale } = useTranslation();
   const toast = useToast();
   const { onError } = useApiMutation();
-  const { getParam, getNumberParam, updateParams, clearParams, hasActiveFilters } =
+  const { getParam, getNumberParam, updateParams } =
     useListQueryParams({
     filterKeys: ["tab", "sort"],
     defaults: { tab: "upcoming", sort: "date", pageSize: 20 },
@@ -256,31 +255,6 @@ function PlanPageContent() {
     [updateParams]
   );
 
-  const activeFilters = useMemo(() => {
-    const filters: { key: string; label: string; onRemove: () => void }[] = [];
-
-    if (activeTab !== "upcoming") {
-      filters.push({
-        key: "tab",
-        label: t(`plan.tabs.${activeTab}`),
-        onRemove: () => updateParams({ tab: "upcoming" }),
-      });
-    }
-
-    if (sortBy !== "date") {
-      filters.push({
-        key: "sort",
-        label: t("plan.sort.byMilestone"),
-        onRemove: () => updateParams({ sort: "date" }),
-      });
-    }
-
-    return filters;
-  }, [activeTab, sortBy, t, updateParams]);
-
-  const sortLabel =
-    sortBy === "milestone" ? t("plan.sort.byMilestone") : t("plan.sort.byDate");
-
   // Loading state
   if (isLoading) {
     return <PlanPageSkeleton />;
@@ -321,7 +295,7 @@ function PlanPageContent() {
         right={
           filteredAndSortedPlans.length > 0 ? (
             <Select value={sortBy} onValueChange={handleSortChange}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="h-9 min-w-[160px] max-w-[220px]">
                 <SelectValue placeholder={t("plan.sort.label")} />
               </SelectTrigger>
               <SelectContent>
@@ -331,21 +305,9 @@ function PlanPageContent() {
             </Select>
           ) : null
         }
-        showClear={hasActiveFilters}
-        clearLabel={t("filters.clear")}
-        onClear={() => clearParams()}
       />
 
-      <ActiveFiltersBar
-        filters={activeFilters}
-        onClearAll={() => clearParams()}
-        clearLabel={t("filters.clear")}
-      />
-
-      <ResultsHeader
-        count={filteredAndSortedPlans.length}
-        sortLabel={sortBy !== "date" ? sortLabel : undefined}
-      />
+      <ResultsHeader count={filteredAndSortedPlans.length} />
 
       {filteredAndSortedPlans.length === 0 ? (
         <EmptyState
@@ -384,9 +346,12 @@ function PlanPageContent() {
               })
               .map(([month, monthPlans]) => (
                 <div key={month}>
-                  <h2 className="mb-4 font-display text-xl font-semibold capitalize">
-                    {month}
-                  </h2>
+                  <div className="mb-4 flex items-center gap-3">
+                    <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                      {month}
+                    </h2>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
                   <div className="space-y-4">
                     {monthPlans.map((plan) => (
                       <PlanItemCard

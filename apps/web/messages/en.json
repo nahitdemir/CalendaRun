@@ -46,6 +46,8 @@
     "removeFromPlan": "Remove from plan",
     "removeFromPlanTitle": "Remove from your plan?",
     "removeFromPlanDesc": "Are you sure you want to remove this event from your plan?",
+    "registerNow": "Register",
+    "eventWebsite": "Event website",
     "addToCalendar": "Add to Calendar",
     "registration": "Registration",
     "organizer": "Organizer",
@@ -56,6 +58,11 @@
     "registrationOpen": "Registration Open",
     "registrationClosed": "Registration Closed",
     "registrationOpenSoon": "Registration Opens Soon",
+    "registrationInfoOpen": "Registration is open. Secure your spot while it's available.",
+    "registrationInfoOpenSoon": "Registration opens soon. Keep an eye on the dates.",
+    "registrationInfoClosed": "Registration is closed. Check the event website for updates.",
+    "registrationLinkMissing": "Registration link is not available.",
+    "websiteLinkMissing": "Event website link is not available.",
     "upcoming": "Upcoming",
     "past": "Past",
     "description": "Description",
@@ -88,6 +95,11 @@
       "byDate": "By date",
       "byMilestone": "By important dates"
     },
+    "importantDates": "Important Dates",
+    "raceDay": "Race day",
+    "registrationOpen": "Registration opens",
+    "registrationClose": "Registration closes",
+    "addReminder": "Add reminder",
     "countdown": "{days} days to race",
     "nextImportantDate": "No important dates",
     "details": "Details",
@@ -163,7 +175,9 @@
     "deleted": "Deleted successfully",
     "error": "Something went wrong",
     "copied": "Copied to clipboard",
-    "alreadyInPlan": "Already in your plan"
+    "alreadyInPlan": "Already in your plan",
+    "addedToCalendar": "Calendar file downloaded",
+    "calendarFailed": "Could not download the calendar file"
   },
   "common": {
     "loading": "Loading...",

@@ -9,7 +9,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { DistanceBadge, Distance } from "@/components/distance-badge";
 import { eventsApi } from "@/lib/api-client";
@@ -19,10 +18,10 @@ import {
   ArrowRight,
   Flag,
   ExternalLink,
-  CheckCircle2,
   ChevronDown,
   List,
   Trash2,
+  Plus,
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -56,7 +55,6 @@ export function EventCard({
   onAddToPlan,
   onRemoveFromPlan,
   isInPlan = false,
-  planItemId,
   isPlanActionLoading = false,
   showActions = true,
   className,
@@ -115,33 +113,34 @@ export function EventCard({
       >
         <Button
           variant="outline"
-          size="sm"
-          disabled={isPlanActionLoading}
+          size="default"
+          onClick={onRemoveFromPlan}
+          disabled={isPlanActionLoading || !onRemoveFromPlan}
           className={cn(
-            "rounded-r-none border-accent/50 text-accent hover:bg-accent/10",
-            "gap-1.5"
+            "rounded-r-none border-destructive/40 text-destructive hover:bg-destructive/10",
+            "gap-2"
           )}
         >
           {isPlanActionLoading ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <CheckCircle2 className="h-3 w-3" />
+            <Trash2 className="h-4 w-4" />
           )}
-          {t("event.addedToPlan")}
+          {t("event.removeFromPlan")}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
+              size="default"
               disabled={isPlanActionLoading}
               className={cn(
-                "-ml-px rounded-l-none border-accent/50 text-accent hover:bg-accent/10",
+                "-ml-px rounded-l-none border-destructive/40 text-destructive hover:bg-destructive/10",
                 "px-2"
               )}
               aria-label={t("common.actions")}
             >
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -153,28 +152,21 @@ export function EventCard({
               <Calendar className="mr-2 h-4 w-4" />
               {t("event.addToCalendar")}
             </DropdownMenuItem>
-            {planItemId && onRemoveFromPlan && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={onRemoveFromPlan} disabled={isPlanActionLoading}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  {t("event.removeFromPlan")}
-                </DropdownMenuItem>
-              </>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
     ) : (
       <Button
         variant="accent"
-        size="sm"
+        size="default"
         onClick={onAddToPlan}
         disabled={isPlanActionLoading}
       >
         {isPlanActionLoading ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
-        ) : null}
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Plus className="h-4 w-4" />
+        )}
         {t("event.addToPlan")}
       </Button>
     )
@@ -196,7 +188,7 @@ export function EventCard({
             <DistanceBadge key={d} distance={d} size="sm" />
           ))}
           <Badge variant={status.variant} className="gap-1">
-            {StatusIcon && <StatusIcon className="h-3 w-3" />}
+            {StatusIcon && <StatusIcon className="h-4 w-4" />}
             {status.label}
           </Badge>
         </div>
@@ -222,24 +214,24 @@ export function EventCard({
       {/* Right: Actions */}
       {showActions && (
         <div className="mt-4 flex flex-wrap items-center gap-2 md:mt-0 md:flex-col md:items-end">
+          {planAction}
+
           {event.registrationStatus === "open" && event.registrationUrl ? (
-            <Button variant="accent" size="sm" asChild>
+            <Button variant="accent" size="default" asChild>
               <a
                 href={event.registrationUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="gap-1.5"
+                className="gap-2"
               >
-                {t("event.registration")}
-                <ExternalLink className="h-3 w-3" />
+                {t("event.registerNow")}
+                <ExternalLink className="h-4 w-4" />
               </a>
             </Button>
           ) : null}
 
-          {planAction}
-
           {onView && (
-            <Button variant="ghost" size="sm" onClick={onView} className="gap-1.5">
+            <Button variant="ghost" size="sm" onClick={onView} className="h-9 gap-2">
               {t("event.view")}
               <ArrowRight className="h-4 w-4" />
             </Button>
