@@ -50,12 +50,12 @@ public class AuditLogsController : ControllerBase
 
         if (!DateQueryParser.TryParseDateFilter(from, "from", false, out var dateFrom, out var fromError))
         {
-            return BadRequest(ProblemDetailsFactory.Create(400, fromError ?? "Invalid date format", HttpContext));
+            return BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, fromError ?? "Invalid date format", HttpContext));
         }
 
         if (!DateQueryParser.TryParseDateFilter(to, "to", true, out var dateTo, out var toError))
         {
-            return BadRequest(ProblemDetailsFactory.Create(400, toError ?? "Invalid date format", HttpContext));
+            return BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, toError ?? "Invalid date format", HttpContext));
         }
 
         var query = new GetAuditLogsQuery(
@@ -97,7 +97,7 @@ public class AuditLogsController : ControllerBase
             return Forbid();
 
         if (!isSuperAdmin && !tenantId.HasValue)
-            return BadRequest(ProblemDetailsFactory.Create(
+            return BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(
                 400,
                 $"{HeaderNames.TenantId} header is required",
                 HttpContext));
@@ -109,12 +109,12 @@ public class AuditLogsController : ControllerBase
 
         if (!DateQueryParser.TryParseDateFilter(from, "from", false, out var adminDateFrom, out var adminFromError))
         {
-            return BadRequest(ProblemDetailsFactory.Create(400, adminFromError ?? "Invalid date format", HttpContext));
+            return BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, adminFromError ?? "Invalid date format", HttpContext));
         }
 
         if (!DateQueryParser.TryParseDateFilter(to, "to", true, out var adminDateTo, out var adminToError))
         {
-            return BadRequest(ProblemDetailsFactory.Create(400, adminToError ?? "Invalid date format", HttpContext));
+            return BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, adminToError ?? "Invalid date format", HttpContext));
         }
 
         var query = new GetAuditLogsQuery(
@@ -205,10 +205,10 @@ public class AuditLogsController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
-            ResultErrorType.Forbidden => StatusCode(403, ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
-            ResultErrorType.Conflict => Conflict(ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
-            _ => BadRequest(ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
+            ResultErrorType.NotFound => NotFound(Calendarun.Common.Errors.ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, Calendarun.Common.Errors.ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(Calendarun.Common.Errors.ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
     }
 }

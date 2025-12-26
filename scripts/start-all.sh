@@ -4,6 +4,7 @@
 #
 # Kullanım:
 #   ./scripts/start-all.sh          # Tüm sistemi başlat
+#   ./scripts/start-all.sh --debug  # Debug build ile başlat
 #   ./scripts/start-all.sh --fresh  # Sıfırdan başlat (volume'ları sil)
 #   ./scripts/start-all.sh --stop   # Tüm servisleri durdur
 #
@@ -27,6 +28,7 @@ NC='\033[0m' # No Color
 # Flags
 FRESH=false
 STOP_ONLY=false
+DEBUG=false
 
 # Parse arguments
 for arg in "$@"; do
@@ -39,8 +41,17 @@ for arg in "$@"; do
       STOP_ONLY=true
       shift
       ;;
+    --debug)
+      DEBUG=true
+      shift
+      ;;
   esac
 done
+
+BUILD_CONFIG="Release"
+if [ "$DEBUG" = true ]; then
+  BUILD_CONFIG="Debug"
+fi
 
 print_header() {
   echo ""
@@ -354,13 +365,23 @@ start_docker() {
 
 # Build all services
 build_services() {
-  print_step "Backend servisleri derleniyor..."
-  
+  print_step "Backend servisleri derleniyor ($BUILD_CONFIG)..."
+
+  if [ "$BUILD_CONFIG" = "Debug" ]; then
+    dotnet build CalendaRun.sln --configuration Debug --verbosity quiet || {
+      print_error "Build başarısız!"
+      exit 1
+    }
+    print_success "Build tamamlandı (Debug)"
+    return
+  fi
+
   if dotnet build CalendaRun.sln --configuration Release --verbosity quiet 2>/dev/null; then
-    print_success "Build tamamlandı"
+    print_success "Build tamamlandı (Release)"
   else
     print_warning "Release build başarısız, Debug deneniyor..."
-    dotnet build CalendaRun.sln --verbosity quiet || {
+    BUILD_CONFIG="Debug"
+    dotnet build CalendaRun.sln --configuration Debug --verbosity quiet || {
       print_error "Build başarısız!"
       exit 1
     }
@@ -427,6 +448,10 @@ install_frontend() {
 # Start all services
 start_services() {
   print_step "Backend servisleri başlatılıyor..."
+  local run_build_flag="--no-build"
+  if [ "$BUILD_CONFIG" = "Debug" ]; then
+    run_build_flag=""
+  fi
   
   # Create log directory
   mkdir -p .logs
@@ -438,7 +463,7 @@ start_services() {
   if [ -d "services/settings/src/Settings.Api" ]; then
     echo "  → Settings API (:$SETTINGS_PORT)..."
     kill_port "$SETTINGS_PORT"
-    nohup dotnet run --project services/settings/src/Settings.Api --no-build --no-launch-profile > .logs/settings.log 2>&1 &
+    nohup dotnet run --configuration "$BUILD_CONFIG" --project services/settings/src/Settings.Api $run_build_flag --no-launch-profile > .logs/settings.log 2>&1 &
     sleep 2
   fi
   
@@ -446,7 +471,7 @@ start_services() {
   if [ -d "services/platform/src/Platform.Api" ]; then
     echo "  → Platform API (:$PLATFORM_PORT)..."
     kill_port "$PLATFORM_PORT"
-    nohup dotnet run --project services/platform/src/Platform.Api --no-build --no-launch-profile > .logs/platform.log 2>&1 &
+    nohup dotnet run --configuration "$BUILD_CONFIG" --project services/platform/src/Platform.Api $run_build_flag --no-launch-profile > .logs/platform.log 2>&1 &
     sleep 3
   fi
   
@@ -454,14 +479,14 @@ start_services() {
   if [ -d "services/catalog/src/Catalog.Api" ]; then
     echo "  → Catalog API (:$CATALOG_PORT)..."
     kill_port "$CATALOG_PORT"
-    nohup dotnet run --project services/catalog/src/Catalog.Api --no-build --no-launch-profile > .logs/catalog.log 2>&1 &
+    nohup dotnet run --configuration "$BUILD_CONFIG" --project services/catalog/src/Catalog.Api $run_build_flag --no-launch-profile > .logs/catalog.log 2>&1 &
   fi
   
   # Start Planning API
   if [ -d "services/planning/src/Planning.Api" ]; then
     echo "  → Planning API (:$PLANNING_PORT)..."
     kill_port "$PLANNING_PORT"
-    nohup dotnet run --project services/planning/src/Planning.Api --no-build --no-launch-profile > .logs/planning.log 2>&1 &
+    nohup dotnet run --configuration "$BUILD_CONFIG" --project services/planning/src/Planning.Api $run_build_flag --no-launch-profile > .logs/planning.log 2>&1 &
   fi
   
   # Wait for APIs to start
@@ -471,7 +496,7 @@ start_services() {
   if [ -d "apps/gateway" ]; then
     echo "  → Gateway (:$GATEWAY_PORT)..."
     kill_port "$GATEWAY_PORT"
-    nohup dotnet run --project apps/gateway --no-build --no-launch-profile > .logs/gateway.log 2>&1 &
+    nohup dotnet run --configuration "$BUILD_CONFIG" --project apps/gateway $run_build_flag --no-launch-profile > .logs/gateway.log 2>&1 &
   fi
   
   # Wait for Gateway

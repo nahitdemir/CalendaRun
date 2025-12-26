@@ -20,10 +20,10 @@ export function useDistances() {
   const { selectedTenant } = useAuth();
 
   const { data: distanceOptions, isLoading, error } = useQuery<DistanceOption[]>({
-    queryKey: ["distances", selectedTenant?.id],
+    queryKey: ["distances", selectedTenant?.tenantId],
     queryFn: async () => {
       try {
-        const result = await settingsApi.getDistances(selectedTenant?.id);
+        const result = await settingsApi.getDistances(selectedTenant?.tenantId);
         return result;
       } catch (err) {
         return [...DEFAULT_DISTANCE_OPTIONS];

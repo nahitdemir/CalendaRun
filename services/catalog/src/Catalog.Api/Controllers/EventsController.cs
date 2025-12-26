@@ -59,12 +59,12 @@ public class EventsController : ControllerBase
 
         if (!DateQueryParser.TryParseDateFilter(from, "from", false, out dateFrom, out var fromError))
         {
-            return BadRequest(ProblemDetailsFactory.Create(400, fromError ?? "Invalid date format", HttpContext));
+            return BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, fromError ?? "Invalid date format", HttpContext));
         }
 
         if (!DateQueryParser.TryParseDateFilter(to, "to", true, out dateTo, out var toError))
         {
-            return BadRequest(ProblemDetailsFactory.Create(400, toError ?? "Invalid date format", HttpContext));
+            return BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, toError ?? "Invalid date format", HttpContext));
         }
 
         // Validate pagination
@@ -132,7 +132,7 @@ public class EventsController : ControllerBase
         var role = GetTenantRole();
 
         if (!tenantId.HasValue)
-            return BadRequest(ProblemDetailsFactory.Create(
+            return BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(
                 400,
                 $"{HeaderNames.TenantId} header is required",
                 HttpContext));
@@ -258,10 +258,10 @@ public class EventsController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
-            ResultErrorType.Forbidden => StatusCode(403, ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
-            ResultErrorType.Conflict => Conflict(ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
-            _ => BadRequest(ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
+            ResultErrorType.NotFound => NotFound(Calendarun.Common.Errors.ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, Calendarun.Common.Errors.ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(Calendarun.Common.Errors.ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
     }
 
@@ -272,10 +272,10 @@ public class EventsController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
-            ResultErrorType.Forbidden => StatusCode(403, ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
-            ResultErrorType.Conflict => Conflict(ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
-            _ => BadRequest(ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
+            ResultErrorType.NotFound => NotFound(Calendarun.Common.Errors.ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, Calendarun.Common.Errors.ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(Calendarun.Common.Errors.ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
     }
 }
