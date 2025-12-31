@@ -65,7 +65,10 @@ Bu komut otomatik olarak:
 ```bash
 cd CalendaRun
 cp infra/local.env.sample infra/local.env
+cp apps/web/env.sample apps/web/.env.local
 ```
+
+> Not: `infra/local.env.sample` ve `apps/web/env.sample` sadece yerel gelistirme icindir. Public repo icin gercek sifreleri veya secretlari bu dosyalara yazmayin.
 
 #### Adım 2: Docker Altyapısını Başlat
 
@@ -175,14 +178,13 @@ curl http://localhost:8080/health  # Gateway
 ### Web UI (In-app Auth)
 
 1. http://localhost:3000 adresine git
-2. **"Giriş Yap"** butonuna tıkla ("/login" sayfası uygulama içinde açılır)
-3. Test kullanıcılarından biriyle giriş yap:
+2. **"Giriş Yap"** butonuna tıkla ("/login" sayfası uygulama icinde acilir)
+3. `/register` ile yeni hesap olustur veya Keycloak Admin Console'da kullanici ekleyip `/login` ile giris yap.
 
-| Kullanıcı | Şifre | Rol | Yetkiler |
-|-----------|-------|-----|----------|
-| `super@calendarun.local` | `super123` | Super Admin | Tüm sistemı yönetir |
-| `admin@tenant1.local` | `admin123` | Tenant Admin | Firma etkinliklerini yönetir |
-| `demo@calendarun.local` | `demo123` | User | Etkinlikleri görür, plan yapar |
+Notlar:
+- `/register`, `/forgot-password` ve `/reset-password` akislari Keycloak Admin API gerektirir.
+- Tokenlar httpOnly cookie ile tutulur; tarayici tarafinda localStorage kullanilmaz.
+- E-posta sifre sifirlama icin SMTP ayarlarinin yapili olmasi gerekir (dev icin Mailhog kullanabilirsiniz).
 
 ### Keycloak Ayarları (In-app Auth)
 
@@ -237,25 +239,28 @@ Sağ üst köşedeki 🌐 ikonuna tıklayarak **Türkçe/English** arasında ge�
 ## 🧪 API Test Örnekleri
 
 ```bash
-# Token al
-TOKEN=$(curl -s -X POST "http://localhost:8180/realms/calendarun/protocol/openid-connect/token" \
-  -d "grant_type=password&client_id=calendarun-web&username=super@calendarun.local&password=super123" \
-  -H "Content-Type: application/x-www-form-urlencoded" | jq -r '.access_token')
-
+# Ornek: BFF uzerinden login olup cookie ile API cagrilari
+EMAIL="you@example.com"
+PASSWORD="your-password"
 TENANT_ID="00000000-0000-0000-0000-000000000001"
 
+curl -s -X POST "http://localhost:3000/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASSWORD}\"}" \
+  -c /tmp/calendarun.cookies >/dev/null
+
 # Etkinlikleri listele
-curl -H "Authorization: Bearer $TOKEN" \
-     -H "X-Tenant-Id: $TENANT_ID" \
-     http://localhost:8080/api/events | jq
+curl -b /tmp/calendarun.cookies \
+  -H "X-Tenant-Id: $TENANT_ID" \
+  http://localhost:3000/api/events | jq
 
 # Firmaları listele (super admin)
-curl -H "Authorization: Bearer $TOKEN" \
-     http://localhost:8080/api/super-admin/tenants | jq
+curl -b /tmp/calendarun.cookies \
+  http://localhost:3000/api/super-admin/tenants | jq
 
 # Plan oluştur
-curl -X POST http://localhost:8080/api/plan \
-  -H "Authorization: Bearer $TOKEN" \
+curl -X POST http://localhost:3000/api/plan \
+  -b /tmp/calendarun.cookies \
   -H "X-Tenant-Id: $TENANT_ID" \
   -H "Content-Type: application/json" \
   -d '{"eventId":"22222222-2222-2222-2222-222222222222"}'
@@ -440,8 +445,20 @@ pnpm lint         # ESLint check
 | **Database** | PostgreSQL 16 |
 | **Cache** | Redis |
 | **Message Broker** | RabbitMQ + MassTransit |
-| **Auth** | Keycloak (OIDC) |
+| **Auth** | Keycloak (OIDC) + BFF (httpOnly cookies) |
 | **Gateway** | YARP |
+
+---
+
+## 🤝 Contributing
+
+Katki yapmak icin [CONTRIBUTING.md](CONTRIBUTING.md) dosyasina goz atabilirsiniz.
+
+---
+
+## 🔒 Security
+
+Guvenlik aciklarini bildirmek icin [SECURITY.md](SECURITY.md) dosyasini kullanin. Lutfen public issue acmayin.
 
 ---
 
