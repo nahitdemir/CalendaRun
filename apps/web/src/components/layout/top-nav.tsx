@@ -16,7 +16,7 @@ import {
 import { TenantSelector } from "@/components/tenant-selector";
 import { LocaleSwitcher } from "./locale-switcher";
 import { ThemeToggle } from "./theme-toggle";
-import { BrandLogo } from "@/components/brand/BrandLogo";
+import { BrandLogo } from "@/components/Brand/BrandLogo";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
   Compass,
@@ -31,7 +31,6 @@ import {
   Users,
   Calendar,
   FileText,
-  Key,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -277,13 +276,6 @@ export function TopNav() {
                       {t("nav.settings")}
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/settings/token" className="flex items-center gap-2">
-                      <Key className="h-4 w-4" />
-                      Dev Token
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={logout}
                     className="text-destructive focus:text-destructive"

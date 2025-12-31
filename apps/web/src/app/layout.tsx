@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Inter, Barlow_Condensed, Plus_Jakarta_Sans } from "next/font/google";
+import { Inter, Barlow_Condensed, Manrope } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppShell } from "@/components/layout/app-shell";
@@ -17,16 +17,16 @@ const barlowCondensed = Barlow_Condensed({
   weight: ["400", "500", "600", "700"],
 });
 
-const plusJakartaSans = Plus_Jakarta_Sans({
+const manrope = Manrope({
   variable: "--font-brand",
   subsets: ["latin"],
-  weight: ["600", "700"],
+  weight: ["600", "700", "800"],
 });
 
 export const metadata: Metadata = {
   title: "CalendaRUN",
   icons: {
-    icon: BRAND.favicon,
+    icon: "/favicon.ico",
     shortcut: BRAND.favicon,
     apple: BRAND.assets.apple180,
   },
@@ -76,7 +76,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} ${barlowCondensed.variable} ${plusJakartaSans.variable} min-h-screen bg-background font-sans antialiased`}
+        className={`${inter.variable} ${barlowCondensed.variable} ${manrope.variable} min-h-screen bg-background font-sans antialiased`}
       >
         <Providers>
           <AppShell>{children}</AppShell>

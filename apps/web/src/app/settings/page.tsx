@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { User, Shield, Building2, Globe } from "lucide-react";
-import Link from "next/link";
 
 function SettingsContent() {
   const { user, tenants, isSuperAdmin } = useAuth();
@@ -134,17 +133,6 @@ function SettingsContent() {
         </CardContent>
       </Card>
 
-      {/* Dev Token Link */}
-      <div className="text-center">
-        <Link
-          href="/settings/token"
-          className="text-sm text-muted-foreground hover:text-foreground hover:underline"
-        >
-          {locale === "tr"
-            ? "Geliştirici Token Ayarları →"
-            : "Developer Token Settings →"}
-        </Link>
-      </div>
     </div>
   );
 }
@@ -156,4 +144,3 @@ export default function SettingsPage() {
     </AuthGuard>
   );
 }
-

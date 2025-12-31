@@ -1,13 +1,7 @@
-import { Suspense } from "react";
-import SignInPage from "./page-client";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return (
-    <Suspense fallback={<div />}>
-      <SignInPage />
-    </Suspense>
-  );
+  redirect("/login");
 }
-
 
 

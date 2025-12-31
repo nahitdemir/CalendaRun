@@ -172,12 +172,11 @@ curl http://localhost:8080/health  # Gateway
 
 ## 🔑 Giriş Yapma
 
-### Yöntem 1: Web UI ile (Keycloak OAuth)
+### Web UI (In-app Auth)
 
 1. http://localhost:3000 adresine git
-2. **"Giriş Yap"** butonuna tıkla
-3. Keycloak login sayfasına yönlendirileceksin
-4. Test kullanıcılarından biriyle giriş yap:
+2. **"Giriş Yap"** butonuna tıkla ("/login" sayfası uygulama içinde açılır)
+3. Test kullanıcılarından biriyle giriş yap:
 
 | Kullanıcı | Şifre | Rol | Yetkiler |
 |-----------|-------|-----|----------|
@@ -185,24 +184,16 @@ curl http://localhost:8080/health  # Gateway
 | `admin@tenant1.local` | `admin123` | Tenant Admin | Firma etkinliklerini yönetir |
 | `demo@calendarun.local` | `demo123` | User | Etkinlikleri görür, plan yapar |
 
-### Yöntem 2: Dev Token ile (Geliştirme Modu)
+### Keycloak Ayarları (In-app Auth)
 
-Eğer Keycloak OAuth çalışmıyorsa, manuel token ile giriş yapabilirsin:
-
-```bash
-# 1. Token al
-TOKEN=$(curl -s -X POST "http://localhost:8180/realms/calendarun/protocol/openid-connect/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password" \
-  -d "client_id=calendarun-web" \
-  -d "username=super@calendarun.local" \
-  -d "password=super123" | jq -r '.access_token')
-
-echo "Token alındı: ${TOKEN:0:50}..."
-```
-
-2. http://localhost:3000/settings/token adresine git
-3. Token'ı yapıştır ve "Token Kaydet" butonuna tıkla
+- `calendarun-web` client:
+  - **Direct Access Grants** aktif (password grant).
+  - **Valid Redirect URIs**: `http://localhost:3000/*`
+  - **Web Origins**: `http://localhost:3000`
+- `calendarun-admin` client:
+  - **Service Accounts** aktif.
+  - Service account rolü: `realm-management` altında `manage-users`, `view-users`.
+- Realm SMTP ayarları doğru olmalı (password reset e-postası için).
 
 ---
 
@@ -213,10 +204,13 @@ echo "Token alındı: ${TOKEN:0:50}..."
 | Sayfa | URL | Açıklama |
 |-------|-----|----------|
 | **Keşfet** | `/` | Tüm yarış etkinliklerini listele ve filtrele |
+| **Giriş** | `/login` | Uygulama içi giriş ekranı |
+| **Kayıt** | `/register` | Yeni hesap oluştur |
+| **Şifre Sıfırla** | `/forgot-password` | Şifre sıfırlama bağlantısı iste |
+| **Yeni Şifre** | `/reset-password` | Yeni şifre belirle |
 | **Etkinlik Detay** | `/events/{id}` | Etkinlik detayları, milestones, kayıt linki |
 | **Planım** | `/plan` | Planladığın yarışları takip et |
 | **Ayarlar** | `/settings` | Profil bilgileri |
-| **Dev Token** | `/settings/token` | Geliştirici token yönetimi |
 
 ### Admin Sayfaları (Tenant Admin)
 
@@ -293,9 +287,9 @@ cat infra/local.env | grep POSTGRES
 
 ### Frontend 401 hatası
 
-1. Token'ın geçerli olduğundan emin ol
-2. http://localhost:3000/settings/token adresinden yeni token gir
-3. Tarayıcı localStorage'ı temizle: `localStorage.clear()`
+1. Oturumu kapatıp tekrar giriş yap (`/login`)
+2. Tarayıcıda `calendarun_access_token` ve `calendarun_refresh_token` cookie'lerini temizle
+3. Keycloak client ayarlarında **Direct Access Grants** açık mı kontrol et
 
 ### Port çakışması
 

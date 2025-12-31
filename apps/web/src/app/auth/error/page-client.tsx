@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { BrandLogo } from "@/components/brand/BrandLogo";
+import { BrandLogo } from "@/components/Brand/BrandLogo";
 import { PageHeader } from "@/components/page-header";
 import { useTranslation } from "@/contexts/locale-context";
 import { useRouter } from "next/navigation";
@@ -50,7 +50,7 @@ export default function AuthErrorPage() {
             variant="accent"
             size="lg"
             className="w-full"
-            onClick={() => router.push("/auth/signin")}
+            onClick={() => router.push("/login")}
           >
             {locale === "tr" ? "Tekrar Dene" : "Try Again"}
           </Button>

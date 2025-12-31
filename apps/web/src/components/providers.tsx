@@ -1,6 +1,5 @@
 "use client";
 
-import { SessionProvider } from "next-auth/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LocaleProvider } from "@/contexts/locale-context";
 import { AuthProvider } from "@/contexts/auth-context";
@@ -29,16 +28,14 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   return (
-    <SessionProvider>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <LocaleProvider>
-            <ToastProvider>
-              <AuthProvider>{children}</AuthProvider>
-            </ToastProvider>
-          </LocaleProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </SessionProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <LocaleProvider>
+          <ToastProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </ToastProvider>
+        </LocaleProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }

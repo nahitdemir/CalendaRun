@@ -15,15 +15,7 @@ interface BrandLogoProps {
   priority?: boolean;
 }
 
-const WORDMARK_RATIO = 756 / 182;
-
 const ICON_RENDER_PX: Record<BrandLogoSize, number> = {
-  sm: 24,
-  md: 28,
-  lg: 32,
-};
-
-const WORDMARK_HEIGHT_PX: Record<BrandLogoSize, number> = {
   sm: 24,
   md: 28,
   lg: 32,
@@ -35,6 +27,18 @@ const ICON_SOURCES: Record<BrandLogoSize, string> = {
   lg: BRAND.assets.icon128,
 };
 
+const TEXT_SIZES: Record<BrandLogoSize, string> = {
+  sm: "text-sm",
+  md: "text-base",
+  lg: "text-lg",
+};
+
+const GAP_SIZES: Record<BrandLogoSize, string> = {
+  sm: "gap-2",
+  md: "gap-2.5",
+  lg: "gap-3",
+};
+
 export function BrandLogo({
   variant = "wordmark",
   size = "md",
@@ -42,33 +46,36 @@ export function BrandLogo({
   priority = false,
 }: BrandLogoProps) {
   const iconSize = ICON_RENDER_PX[size];
-  const wordmarkHeight = WORDMARK_HEIGHT_PX[size];
-  const wordmarkWidth = Math.round(wordmarkHeight * WORDMARK_RATIO);
-  const source =
-    variant === "wordmark" ? BRAND.assets.wordmark : ICON_SOURCES[size];
-  const altText =
-    variant === "wordmark"
-      ? `${BRAND.name} wordmark`
-      : `${BRAND.name} icon`;
 
   return (
     <Link
       href="/"
       aria-label={`${BRAND.name} Home`}
       className={cn(
-        "inline-flex items-center gap-2 rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+        "inline-flex items-center rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        GAP_SIZES[size],
         className
       )}
     >
       <Image
-        src={source}
-        alt={altText}
-        width={variant === "wordmark" ? wordmarkWidth : iconSize}
-        height={variant === "wordmark" ? wordmarkHeight : iconSize}
-        sizes={`${variant === "wordmark" ? wordmarkWidth : iconSize}px`}
-        className="block"
+        src={ICON_SOURCES[size]}
+        alt={`${BRAND.name} icon`}
+        width={iconSize}
+        height={iconSize}
+        sizes={`${iconSize}px`}
         priority={priority}
       />
+      {variant === "wordmark" && (
+        <span
+          className={cn(
+            "font-brand font-semibold leading-none tracking-tight text-foreground",
+            TEXT_SIZES[size]
+          )}
+        >
+          <span>Calenda</span>
+          <span className="font-bold text-accent">RUN</span>
+        </span>
+      )}
     </Link>
   );
 }

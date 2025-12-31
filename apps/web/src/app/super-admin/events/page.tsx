@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
-import { useSession } from "next-auth/react";
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SuperAdminGuard } from "@/components/route-guards";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAdminEvents, Event } from "@/lib/api";
+import { superAdminApi, Event } from "@/lib/api-client";
 import { CalendarDays, MapPin, Globe, ExternalLink, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -22,24 +21,16 @@ function formatDate(dateStr: string) {
 }
 
 function EventsPageContent() {
-  const { data: session } = useSession();
   const { getNumberParam, updateParams } = useListQueryParams({
     defaults: { pageSize: 20 },
   });
   const page = getNumberParam("page", 1);
   const pageSize = getNumberParam("pageSize", 20);
 
-  const { data: events, isLoading } = useQuery({
-    queryKey: ["super-admin-events"],
-    queryFn: () => getAdminEvents(session?.accessToken!),
-    enabled: !!session?.accessToken,
+  const { data: eventsPage, isLoading } = useQuery({
+    queryKey: ["super-admin-events", page, pageSize],
+    queryFn: () => superAdminApi.listAllEvents({ page, pageSize }),
   });
-
-  const paginatedEvents = useMemo(() => {
-    if (!events) return [];
-    const start = (page - 1) * pageSize;
-    return events.slice(start, start + pageSize);
-  }, [events, page, pageSize]);
 
   const handlePageChange = useCallback(
     (nextPage: number) => {
@@ -66,9 +57,9 @@ function EventsPageContent() {
         subtitle="View all events across all tenants (read-only)"
       />
 
-      <ResultsHeader count={events?.length ?? 0} />
+      <ResultsHeader count={eventsPage?.totalCount ?? 0} />
 
-      {events && events.length === 0 ? (
+      {eventsPage && eventsPage.items.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-20">
             <CalendarDays className="h-12 w-12 text-muted-foreground mb-4" />
@@ -80,7 +71,7 @@ function EventsPageContent() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {paginatedEvents.map((event) => (
+          {eventsPage?.items.map((event) => (
             <Card key={event.id} className="hover:border-primary/30 transition-colors">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -150,7 +141,7 @@ function EventsPageContent() {
       <ListPagination
         page={page}
         pageSize={pageSize}
-        total={events?.length}
+        total={eventsPage?.totalCount}
         onPageChange={handlePageChange}
       />
     </PageShell>

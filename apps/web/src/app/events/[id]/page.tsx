@@ -15,7 +15,6 @@ import {
   PlanItem,
   getStoredLocale,
   getStoredTenantId,
-  getStoredToken,
 } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -247,10 +246,6 @@ export default function EventDetailPage({
         Accept: "text/calendar",
         "Accept-Language": getStoredLocale(),
       };
-      const token = getStoredToken();
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
       const tenantId = getStoredTenantId();
       if (tenantId) {
         headers["X-Tenant-Id"] = tenantId;

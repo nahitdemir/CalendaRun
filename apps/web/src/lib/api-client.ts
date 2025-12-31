@@ -6,7 +6,7 @@ import { DEFAULT_DISTANCE_OPTIONS } from "@/lib/constants/distances";
 import type { MilestoneType } from "@/lib/constants/milestones";
 import type { PlanState } from "@/lib/constants/plan";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_BASE = process.env.NEXT_PUBLIC_BFF_URL || "";
 
 // ============ Types ============
 
@@ -66,26 +66,11 @@ interface RequestConfig {
 // ============ Storage Keys ============
 
 const STORAGE_KEYS = {
-  accessToken: "calendarun-access-token",
   tenantId: "calendarun-selected-tenant-id",
   locale: "calendarun-locale",
 } as const;
 
-// ============ Token/Tenant Management ============
-
-export function getStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(STORAGE_KEYS.accessToken);
-}
-
-export function setStoredToken(token: string | null): void {
-  if (typeof window === "undefined") return;
-  if (token) {
-    localStorage.setItem(STORAGE_KEYS.accessToken, token);
-  } else {
-    localStorage.removeItem(STORAGE_KEYS.accessToken);
-  }
-}
+// ============ Tenant Management ============
 
 export function getStoredTenantId(): string | null {
   if (typeof window === "undefined") return null;
@@ -136,13 +121,7 @@ async function request<T>(
     "Accept-Language": getStoredLocale(),
   };
 
-  // Add auth token
-  if (!skipAuth) {
-    const token = getStoredToken();
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-  }
+  // Auth handled by BFF cookies; do not attach tokens in the client.
 
   // Add tenant header
   if (!skipTenant) {
@@ -157,14 +136,13 @@ async function request<T>(
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    credentials: "include",
   });
 
   // Handle errors
   if (!response.ok) {
     // Handle 401 Unauthorized - clear token (auth context will handle redirect)
     if (response.status === 401) {
-      setStoredToken(null);
-      // Dispatch custom event so auth context can react
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("auth:unauthorized"));
       }
@@ -322,7 +300,7 @@ export interface PagedResult<T> {
 // --- Auth / Profile ---
 
 export const authApi = {
-  getMe: () => api.get<UserProfile>("/api/me"),
+  getMe: () => api.get<UserProfile>("/api/auth/me"),
   getMyTenants: () => api.get<TenantMembership[]>("/api/me/tenants"),
 };
 
