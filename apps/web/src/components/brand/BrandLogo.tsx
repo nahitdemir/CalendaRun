@@ -56,7 +56,7 @@ export function BrandLogo({
       href="/"
       aria-label={`${BRAND.name} Home`}
       className={cn(
-        "inline-flex items-center gap-2 rounded-md transition-all hover:-translate-y-0.5 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+        "inline-flex items-center gap-2 rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
         className
       )}
     >
