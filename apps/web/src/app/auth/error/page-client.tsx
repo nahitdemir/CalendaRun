@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { PageHeader } from "@/components/page-header";
 import { useTranslation } from "@/contexts/locale-context";
 import { useRouter } from "next/navigation";
@@ -36,6 +37,9 @@ export default function AuthErrorPage() {
   return (
     <div className="container-app flex min-h-[calc(100vh-4rem)] items-center justify-center">
       <div className="w-full max-w-md space-y-6">
+        <div className="flex justify-center">
+          <BrandLogo variant="wordmark" size="md" priority />
+        </div>
         <PageHeader
           title={locale === "tr" ? "Giriş Hatası" : "Sign In Error"}
           subtitle={getErrorMessage()}
@@ -63,4 +67,3 @@ export default function AuthErrorPage() {
     </div>
   );
 }
-

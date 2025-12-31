@@ -16,8 +16,9 @@ import {
 import { TenantSelector } from "@/components/tenant-selector";
 import { LocaleSwitcher } from "./locale-switcher";
 import { ThemeToggle } from "./theme-toggle";
+import { BrandLogo } from "@/components/brand/BrandLogo";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import {
-  Flag,
   Compass,
   ClipboardList,
   Settings,
@@ -49,6 +50,9 @@ export function TopNav() {
     logout,
   } = useAuth();
   const { t } = useTranslation();
+  const isMobile = useMediaQuery("(max-width: 767px)");
+  const logoVariant = isMobile ? "icon" : "wordmark";
+  const logoSize = isMobile ? "sm" : "lg";
 
   const isAdminSection =
     pathname.startsWith("/admin") || pathname.startsWith("/super-admin");
@@ -93,15 +97,12 @@ export function TopNav() {
       <div className="container-app !py-0">
         <div className="flex h-16 items-center gap-6">
           {/* Logo */}
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-display text-xl font-bold tracking-tight"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
-              <Flag className="h-4 w-4 text-accent-foreground" />
-            </div>
-            <span className="hidden sm:inline">CalendaRUN</span>
-          </Link>
+          <BrandLogo
+            variant={logoVariant}
+            size={logoSize}
+            className="shrink-0"
+            priority
+          />
 
           {/* Back to Explore - shown on admin pages */}
           {isAdminSection && (

@@ -4,6 +4,7 @@ import { signIn, getProviders } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { PageHeader } from "@/components/page-header";
 import { useTranslation } from "@/contexts/locale-context";
 
@@ -39,6 +40,9 @@ export default function SignInPage() {
   return (
     <div className="container-app flex min-h-[calc(100vh-4rem)] items-center justify-center">
       <div className="w-full max-w-md space-y-6">
+        <div className="flex justify-center">
+          <BrandLogo variant="wordmark" size="md" priority />
+        </div>
         <PageHeader
           title={t("nav.signIn")}
           subtitle={locale === "tr" ? "Hesabınıza giriş yapın" : "Sign in to your account"}
@@ -140,4 +144,3 @@ export default function SignInPage() {
     </div>
   );
 }
-

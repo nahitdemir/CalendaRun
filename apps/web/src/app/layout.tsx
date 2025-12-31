@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Inter, Barlow_Condensed } from "next/font/google";
+import { Inter, Barlow_Condensed, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppShell } from "@/components/layout/app-shell";
+import { BRAND } from "@/constants/brand";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -11,14 +12,34 @@ const inter = Inter({
 });
 
 const barlowCondensed = Barlow_Condensed({
-  variable: "--font-display",
+  variable: "--font-accent",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
 
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-brand",
+  subsets: ["latin"],
+  weight: ["600", "700"],
+});
+
 export const metadata: Metadata = {
-  title: "CalendaRUN - Plan Your Races",
-  description: "Never miss race registrations. Add to your calendar, get reminders.",
+  title: "CalendaRUN",
+  icons: {
+    icon: BRAND.favicon,
+    shortcut: BRAND.favicon,
+    apple: BRAND.assets.apple180,
+  },
+  manifest: "/manifest.webmanifest",
+  openGraph: {
+    title: BRAND.name,
+    images: [BRAND.logo],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: BRAND.name,
+    images: [BRAND.logo],
+  },
 };
 
 const themeScript = `
@@ -55,7 +76,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} ${barlowCondensed.variable} min-h-screen bg-background font-sans antialiased`}
+        className={`${inter.variable} ${barlowCondensed.variable} ${plusJakartaSans.variable} min-h-screen bg-background font-sans antialiased`}
       >
         <Providers>
           <AppShell>{children}</AppShell>
