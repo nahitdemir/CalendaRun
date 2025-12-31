@@ -6,21 +6,32 @@ import { cn } from "@/lib/utils";
 
 type ToastType = "success" | "error" | "info" | "warning";
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: string;
   type: ToastType;
   title: string;
   description?: string;
+  action?: ToastAction;
 }
 
 interface ToastContextType {
   toasts: Toast[];
-  addToast: (type: ToastType, title: string, description?: string) => void;
+  addToast: (
+    type: ToastType,
+    title: string,
+    description?: string,
+    action?: ToastAction
+  ) => void;
   removeToast: (id: string) => void;
-  success: (title: string, description?: string) => void;
-  error: (title: string, description?: string) => void;
-  info: (title: string, description?: string) => void;
-  warning: (title: string, description?: string) => void;
+  success: (title: string, description?: string, action?: ToastAction) => void;
+  error: (title: string, description?: string, action?: ToastAction) => void;
+  info: (title: string, description?: string, action?: ToastAction) => void;
+  warning: (title: string, description?: string, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -43,9 +54,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const addToast = useCallback(
-    (type: ToastType, title: string, description?: string) => {
+    (type: ToastType, title: string, description?: string, action?: ToastAction) => {
       const id = Math.random().toString(36).substring(2, 9);
-      setToasts((prev) => [...prev, { id, type, title, description }]);
+      setToasts((prev) => [...prev, { id, type, title, description, action }]);
 
       // Auto remove after 5 seconds
       setTimeout(() => {
@@ -60,22 +71,26 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const success = useCallback(
-    (title: string, description?: string) => addToast("success", title, description),
+    (title: string, description?: string, action?: ToastAction) =>
+      addToast("success", title, description, action),
     [addToast]
   );
 
   const error = useCallback(
-    (title: string, description?: string) => addToast("error", title, description),
+    (title: string, description?: string, action?: ToastAction) =>
+      addToast("error", title, description, action),
     [addToast]
   );
 
   const info = useCallback(
-    (title: string, description?: string) => addToast("info", title, description),
+    (title: string, description?: string, action?: ToastAction) =>
+      addToast("info", title, description, action),
     [addToast]
   );
 
   const warning = useCallback(
-    (title: string, description?: string) => addToast("warning", title, description),
+    (title: string, description?: string, action?: ToastAction) =>
+      addToast("warning", title, description, action),
     [addToast]
   );
 
@@ -116,6 +131,17 @@ function ToastContainer({
               {toast.description && (
                 <p className="text-sm opacity-80">{toast.description}</p>
               )}
+              {toast.action && (
+                <button
+                  onClick={() => {
+                    onRemove(toast.id);
+                    toast.action?.onClick();
+                  }}
+                  className="mt-1 inline-flex items-center rounded-md border border-current/20 px-2 py-1 text-xs font-medium opacity-90 transition-opacity hover:opacity-100"
+                >
+                  {toast.action.label}
+                </button>
+              )}
             </div>
             <button
               onClick={() => onRemove(toast.id)}
@@ -137,4 +163,3 @@ export function useToast() {
   }
   return context;
 }
-

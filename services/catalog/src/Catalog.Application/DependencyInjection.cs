@@ -11,7 +11,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         // Event Query Handlers
-        services.AddScoped<IQueryHandler<GetEventsQuery, Result<List<EventDto>>>, GetEventsHandler>();
+        services.AddScoped<IQueryHandler<GetEventsQuery, Result<EventsPagedResult>>, GetEventsHandler>();
         services.AddScoped<IQueryHandler<GetEventByIdQuery, Result<EventDto>>, GetEventByIdHandler>();
         services.AddScoped<IQueryHandler<GetAdminEventsQuery, Result<List<AdminEventDto>>>, GetAdminEventsHandler>();
 

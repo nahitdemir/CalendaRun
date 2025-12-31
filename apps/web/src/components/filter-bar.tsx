@@ -11,7 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DistanceBadge, Distance } from "@/components/distance-badge";
-import { Filter, X } from "lucide-react";
+import { useDistances } from "@/hooks/use-distances";
+import { RotateCcw } from "lucide-react";
 
 export interface FilterValues {
   city: string;
@@ -23,13 +24,24 @@ export interface FilterValues {
 interface FilterBarProps {
   values: FilterValues;
   onChange: (values: FilterValues) => void;
+  onClear?: () => void;
+  clearLabel?: string;
+  showClear?: boolean;
   cities?: string[];
+  dateRangeError?: string | null;
 }
 
-const ALL_DISTANCES: Distance[] = ["5K", "10K", "21K", "42K", "ultra"];
-
-export function FilterBar({ values, onChange, cities = [] }: FilterBarProps) {
+export function FilterBar({
+  values,
+  onChange,
+  onClear,
+  clearLabel,
+  showClear,
+  cities = [],
+  dateRangeError,
+}: FilterBarProps) {
   const { t } = useTranslation();
+  const { distances: availableDistances, isLoading: distancesLoading } = useDistances();
 
   const handleCityChange = (city: string) => {
     onChange({ ...values, city: city === "all" ? "" : city });
@@ -50,18 +62,30 @@ export function FilterBar({ values, onChange, cities = [] }: FilterBarProps) {
     onChange({ ...values, distances: newDistances });
   };
 
-  const handleClear = () => {
-    onChange({ city: "", dateFrom: "", dateTo: "", distances: [] });
-  };
-
-  const hasFilters =
-    values.city || values.dateFrom || values.dateTo || values.distances.length > 0;
+  const showClearAction = Boolean(showClear && onClear);
 
   return (
     <div className="rounded-2xl border bg-card p-4 shadow-sm">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {t("filters.title")}
+        </span>
+        {showClearAction && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClear}
+            className="h-9 gap-1.5"
+          >
+            <RotateCcw className="h-4 w-4" />
+            {clearLabel || t("filters.clear")}
+          </Button>
+        )}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-end gap-4">
         {/* City */}
-        <div className="space-y-1.5">
+        <div className="w-full min-w-[220px] flex-1 space-y-1.5">
           <label className="text-sm font-medium text-muted-foreground">
             {t("filters.city")}
           </label>
@@ -80,56 +104,71 @@ export function FilterBar({ values, onChange, cities = [] }: FilterBarProps) {
           </Select>
         </div>
 
-        {/* From date */}
-        <div className="space-y-1.5">
+        {/* Date range */}
+        <div className="w-full min-w-[280px] flex-1 space-y-1.5">
           <label className="text-sm font-medium text-muted-foreground">
-            {t("filters.from")}
+            {t("filters.dateRange")}
           </label>
-          <Input
-            type="date"
-            value={values.dateFrom}
-            onChange={(e) => handleDateFromChange(e.target.value)}
-          />
-        </div>
-
-        {/* To date */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-muted-foreground">
-            {t("filters.to")}
-          </label>
-          <Input
-            type="date"
-            value={values.dateTo}
-            onChange={(e) => handleDateToChange(e.target.value)}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="date"
+              value={values.dateFrom}
+              onChange={(e) => handleDateFromChange(e.target.value)}
+              className={dateRangeError ? "border-destructive" : ""}
+              placeholder={t("filters.from")}
+              aria-label={t("filters.from")}
+            />
+            <Input
+              type="date"
+              value={values.dateTo}
+              onChange={(e) => handleDateToChange(e.target.value)}
+              className={dateRangeError ? "border-destructive" : ""}
+              placeholder={t("filters.to")}
+              aria-label={t("filters.to")}
+            />
+          </div>
         </div>
 
         {/* Distances */}
-        <div className="md:col-span-2 space-y-1.5">
+        <div className="w-full min-w-[240px] flex-1 space-y-1.5">
           <label className="text-sm font-medium text-muted-foreground">
             {t("filters.distance")}
           </label>
           <div className="flex flex-wrap gap-2">
-            {ALL_DISTANCES.map((distance) => (
-              <DistanceBadge
-                key={distance}
-                distance={distance}
-                selected={values.distances.includes(distance)}
-                onClick={() => handleDistanceToggle(distance)}
-                size="sm"
-              />
-            ))}
+            {distancesLoading ? (
+              <span className="text-sm text-muted-foreground">
+                {t("filters.loading") || "Yükleniyor..."}
+              </span>
+            ) : availableDistances.length > 0 ? (
+              availableDistances.map((distance) => (
+                <DistanceBadge
+                  key={distance}
+                  distance={distance}
+                  selected={values.distances.includes(distance)}
+                  onClick={() => handleDistanceToggle(distance)}
+                  size="sm"
+                />
+              ))
+            ) : (
+              // Fallback: Show default distances if API fails
+              (["5K", "10K", "21K", "42K", "ultra"] as Distance[]).map((distance) => (
+                <DistanceBadge
+                  key={distance}
+                  distance={distance}
+                  selected={values.distances.includes(distance)}
+                  onClick={() => handleDistanceToggle(distance)}
+                  size="sm"
+                />
+              ))
+            )}
           </div>
         </div>
       </div>
 
-      {/* Clear button */}
-      {hasFilters && (
-        <div className="mt-4 flex justify-end">
-          <Button variant="ghost" size="sm" onClick={handleClear} className="gap-1.5">
-            <X className="h-4 w-4" />
-            {t("filters.clear")}
-          </Button>
+      {/* Date range error */}
+      {dateRangeError && (
+        <div className="mt-3 rounded-lg border border-destructive/50 bg-destructive/10 p-2 text-sm text-destructive">
+          {dateRangeError}
         </div>
       )}
     </div>

@@ -16,18 +16,38 @@
     "subtitle": "Kayıt tarihlerini kaçırma. Takvimine ekle, hatırlatma al."
   },
   "filters": {
+    "title": "Filtreler",
     "city": "Şehir",
     "from": "Başlangıç",
     "to": "Bitiş",
+    "dateRange": "Tarih",
     "distance": "Mesafe",
     "apply": "Uygula",
     "clear": "Temizle",
     "allCities": "Tüm Şehirler",
-    "allDistances": "Tüm Mesafeler"
+    "allDistances": "Tüm Mesafeler",
+    "sort": {
+      "label": "Sırala",
+      "dateAsc": "Tarihe göre (yakın → uzak)",
+      "dateDesc": "Tarihe göre (uzak → yakın)"
+    }
+  },
+  "listing": {
+    "results": "{count} sonuç bulundu",
+    "sortedBy": "Sıralama: {sort}",
+    "prev": "Önceki",
+    "next": "Sonraki"
   },
   "event": {
     "view": "Detaylar",
     "addToPlan": "Planıma Ekle",
+    "addedToPlan": "Planında",
+    "viewPlan": "Planı Gör",
+    "removeFromPlan": "Planından çıkar",
+    "removeFromPlanTitle": "Planından çıkarılsın mı?",
+    "removeFromPlanDesc": "Bu etkinliği planından kaldırmak istediğine emin misin?",
+    "registerNow": "Kayıt Ol",
+    "eventWebsite": "Etkinlik Sitesi",
     "addToCalendar": "Takvime Ekle",
     "registration": "Kayıt",
     "organizer": "Organizatör",
@@ -38,6 +58,11 @@
     "registrationOpen": "Kayıtlar Açık",
     "registrationClosed": "Kayıtlar Kapandı",
     "registrationOpenSoon": "Kayıtlar Yakında Açılacak",
+    "registrationInfoOpen": "Kayıtlar açık. Yerini ayırtmak için kaydol.",
+    "registrationInfoOpenSoon": "Kayıtlar yakında açılacak. Tarihleri takip et.",
+    "registrationInfoClosed": "Kayıt dönemi kapandı. Güncellemeler için etkinlik sitesine göz at.",
+    "registrationLinkMissing": "Kayıt linki mevcut değil.",
+    "websiteLinkMissing": "Etkinlik sitesi linki mevcut değil.",
     "upcoming": "Yaklaşan",
     "past": "Geçmiş",
     "description": "Açıklama",
@@ -70,6 +95,11 @@
       "byDate": "Tarihe göre",
       "byMilestone": "Önemli tarihlere göre"
     },
+    "importantDates": "Önemli Tarihler",
+    "raceDay": "Yarış günü",
+    "registrationOpen": "Kayıt açılışı",
+    "registrationClose": "Kayıt kapanışı",
+    "addReminder": "Hatırlatma ekle",
     "countdown": "Yarışa {days} gün",
     "nextImportantDate": "Önemli tarih yok",
     "details": "Detaylar",
@@ -87,7 +117,13 @@
       "edit": "Düzenle",
       "publish": "Yayınla",
       "delete": "Sil",
-      "unpublish": "Yayından Kaldır"
+      "unpublish": "Yayından Kaldır",
+      "status": {
+        "label": "Durum",
+        "all": "Tümü",
+        "published": "Yayında",
+        "draft": "Taslak"
+      }
     },
     "users": {
       "title": "Kullanıcılar",
@@ -107,7 +143,12 @@
       "defaultLanguage": "Varsayılan Dil",
       "defaultCurrency": "Varsayılan Para Birimi",
       "status": "Durum",
-      "members": "Üyeler"
+      "members": "Üyeler",
+      "sort": {
+        "label": "Sırala",
+        "createdAt": "Oluşturma tarihi",
+        "name": "Ada göre"
+      }
     },
     "events": {
       "title": "Tüm Etkinlikler"
@@ -134,19 +175,28 @@
     "deleted": "Silindi",
     "error": "Bir hata oluştu",
     "copied": "Kopyalandı",
-    "alreadyInPlan": "Zaten planında"
+    "alreadyInPlan": "Zaten planında",
+    "addedToCalendar": "Takvim dosyası indirildi",
+    "calendarFailed": "Takvim dosyası indirilemedi"
   },
   "common": {
     "loading": "Yükleniyor...",
     "save": "Kaydet",
     "cancel": "İptal",
     "confirm": "Onayla",
+    "undo": "Geri al",
     "search": "Ara",
     "actions": "İşlemler",
     "all": "Tümü",
     "none": "Hiçbiri",
     "yes": "Evet",
     "no": "Hayır"
+  },
+  "theme": {
+    "label": "Tema",
+    "light": "Aydınlık",
+    "dark": "Karanlık",
+    "system": "Sistem"
   },
   "distances": {
     "5K": "5K",
@@ -156,4 +206,3 @@
     "ultra": "Ultra"
   }
 }
-

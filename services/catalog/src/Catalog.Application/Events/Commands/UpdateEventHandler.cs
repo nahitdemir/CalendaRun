@@ -27,7 +27,7 @@ public class UpdateEventHandler : ICommandHandler<UpdateEventCommand, Result<Upd
         if (!command.IsSuperAdmin)
         {
             if (!command.TenantId.HasValue)
-                return Result<UpdateEventResult>.Failure("X-Tenant-Id header is required");
+                return Result<UpdateEventResult>.Failure("Tenant ID is required");
 
             if (eventEntity.TenantId != null && eventEntity.TenantId != command.TenantId)
                 return Result<UpdateEventResult>.Forbidden();
@@ -72,4 +72,3 @@ public class UpdateEventHandler : ICommandHandler<UpdateEventCommand, Result<Upd
         ));
     }
 }
-

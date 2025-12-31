@@ -149,11 +149,13 @@ app.UseAuthorization();
 // ==================== TENANT VALIDATION MIDDLEWARE ====================
 app.Use(async (context, next) =>
 {
-    var path = context.Request.Path.Value?.ToLower() ?? "";
+    // Get path without query string for route matching
+    var path = context.Request.Path.Value ?? "";
+    var pathLower = path.ToLower();
     var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
     
     // === PUBLIC ROUTES (no auth required) ===
-    if (IsPublicRoute(path))
+    if (IsPublicRoute(pathLower))
     {
         await next();
         return;
@@ -282,7 +284,8 @@ static bool IsPublicRoute(string path)
            path.StartsWith("/invites/") || // Accept invite by token (public view)
            path.StartsWith("/api/invites/") ||
            path == "/api/events" || // Public event listing
-           path.StartsWith("/api/events/"); // Public event details
+           path.StartsWith("/api/events/") || // Public event details
+           path == "/api/settings/event.distances"; // Public distance settings
 }
 
 static bool IsSuperAdminRoute(string path)
@@ -309,9 +312,15 @@ static bool IsTenantScopedRoute(string path)
     if (path.StartsWith("/admin/") || path.StartsWith("/api/admin/"))
         return true;
 
-    // Settings routes are tenant-scoped
+    // Settings routes are tenant-scoped, except public ones
     if (path.StartsWith("/api/settings") && !path.Contains("/super-admin/"))
+    {
+        // Exclude public settings routes
+        if (path == "/api/settings/event.distances")
+            return false;
+        
         return true;
+    }
 
     return false;
 }

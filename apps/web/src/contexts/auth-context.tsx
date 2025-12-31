@@ -8,10 +8,9 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  getStoredToken,
-  setStoredToken,
   authApi,
   UserProfile,
   TenantMembership,
@@ -21,127 +20,71 @@ import {
 } from "@/lib/api-client";
 
 interface AuthContextType {
-  // User state
   user: UserProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
 
-  // Roles
   isSuperAdmin: boolean;
   isTenantAdmin: boolean;
 
-  // Tenants
   tenants: TenantMembership[];
   selectedTenant: TenantMembership | null;
   setSelectedTenant: (tenant: TenantMembership | null) => void;
 
-  // Actions
   login: () => void;
   logout: () => void;
 
-  // Dev mode
-  devToken: string | null;
-  setDevToken: (token: string | null) => void;
-
-  // Refresh
   refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data: session, status } = useSession();
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [tenants, setTenants] = useState<TenantMembership[]>([]);
   const [selectedTenant, setSelectedTenantState] = useState<TenantMembership | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [devToken, setDevTokenState] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Initialize dev token from storage
-  useEffect(() => {
-    const storedToken = getStoredToken();
-    if (storedToken) {
-      setDevTokenState(storedToken);
+  const clearAuthState = useCallback(() => {
+    setUser(null);
+    setTenants([]);
+    setSelectedTenantState(null);
+    setStoredTenantId(null);
+    if (typeof window !== "undefined") {
+      [
+        "calendarun_access_token",
+        "calendarun_refresh_token",
+        "calendarun_id_token",
+        "calendarun-access-token",
+      ].forEach((key) => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
     }
-  }, []);
+    setIsLoading(false);
+    queryClient.clear();
+  }, [queryClient]);
 
-  // Get effective access token (session token or dev token)
-  const getAccessToken = useCallback((): string | null => {
-    // Prefer session token from next-auth
-    if (session?.accessToken) {
-      return session.accessToken as string;
-    }
-    // Fallback to dev token (only in development)
-    if (process.env.NODE_ENV === "development" && devToken) {
-      return devToken;
-    }
-    return null;
-  }, [session, devToken]);
-
-  // Set dev token
-  const setDevToken = useCallback((token: string | null) => {
-    setDevTokenState(token);
-    setStoredToken(token);
-  }, []);
-
-  // Set selected tenant
   const setSelectedTenant = useCallback((tenant: TenantMembership | null) => {
     setSelectedTenantState(tenant);
     setStoredTenantId(tenant?.tenantId || null);
   }, []);
 
-  // Load user profile and tenants
   const refreshProfile = useCallback(async () => {
-    const token = getAccessToken();
-    if (!token) {
-      setUser(null);
-      setTenants([]);
-      setIsLoading(false);
-      return;
-    }
+    if (isLoggingOut) return;
 
-    // Temporarily set token for API calls
-    setStoredToken(token);
-
+    setIsLoading(true);
     try {
-      // Fetch profile and tenants in parallel
-      // Silently catch 401 errors (user not authenticated)
-      const [profile, userTenants] = await Promise.all([
-        authApi.getMe().catch((err) => {
-          // Only log non-401 errors
-          if (err instanceof ApiError && err.status !== 401) {
-            console.error("Failed to fetch profile:", err);
-          }
-          return null;
-        }),
-        authApi.getMyTenants().catch((err) => {
-          // Only log non-401 errors
-          if (err instanceof ApiError && err.status !== 401) {
-            console.error("Failed to fetch tenants:", err);
-          }
-          return [];
-        }),
-      ]);
+      const profile = await authApi.getMe();
+      setUser(profile);
 
-      if (profile) {
-        setUser(profile);
-      } else {
-        // If /api/me fails, construct from session
-        if (session?.user) {
-          setUser({
-            id: session.user.id || "",
-            email: session.user.email || "",
-            name: session.user.name || undefined,
-            roles: (session.user as { roles?: string[] }).roles || [],
-            isSuperAdmin: (session.user as { roles?: string[] }).roles?.includes("super_admin") || false,
-          });
-        }
-      }
-
+      const userTenants = await authApi.getMyTenants().catch(() => []);
       setTenants(userTenants);
 
-      // Restore or auto-select tenant
       const storedTenantId = getStoredTenantId();
       if (storedTenantId) {
         const found = userTenants.find((t) => t.tenantId === storedTenantId);
@@ -153,108 +96,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (userTenants.length > 0) {
         setSelectedTenant(userTenants[0]);
       }
-    } catch (err) {
-      console.error("Failed to load profile:", err);
-      if (err instanceof ApiError && err.status === 401) {
-        // Token expired, clear it
-        setDevToken(null);
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 401) {
+        console.error("Failed to load profile:", error);
       }
+      clearAuthState();
     } finally {
       setIsLoading(false);
     }
-  }, [getAccessToken, session, setDevToken, setSelectedTenant]);
+  }, [isLoggingOut, clearAuthState, setSelectedTenant]);
 
-  // Handle session error (token refresh failed)
   useEffect(() => {
-    if (session?.error === "RefreshAccessTokenError") {
-      // Token refresh failed - try to recover by attempting a new login
-      // Only sign out if we're sure the token is invalid
-      console.warn("Token refresh failed, clearing session data...");
-      
-      // Clear local state but don't immediately sign out
-      // This allows the user to try logging in again
-      setUser(null);
-      setTenants([]);
-      setSelectedTenantState(null);
-      setDevTokenState(null);
-      
-      // Sign out from next-auth after a short delay to allow UI to update
-      // This prevents immediate redirect loops
-      const timeoutId = setTimeout(() => {
-        if (status === "authenticated") {
-          signOut({ redirect: false });
-        }
-      }, 1000);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [session?.error, status]);
+    refreshProfile();
+  }, [refreshProfile]);
 
-  // Load profile on auth change
-  useEffect(() => {
-    if (status === "loading") return;
+  const login = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const callbackUrl = `${window.location.pathname}${window.location.search}`;
+    const safeCallbackUrl = callbackUrl.startsWith("/login")
+      ? "/"
+      : callbackUrl;
+    router.push(`/login?callbackUrl=${encodeURIComponent(safeCallbackUrl || "/")}`);
+  }, [router]);
 
-    // If session has error, don't try to load profile
-    if (session?.error) {
-      setUser(null);
-      setTenants([]);
-      setSelectedTenantState(null);
-      setIsLoading(false);
-      return;
-    }
+  const logout = useCallback(() => {
+    const run = async () => {
+      setIsLoggingOut(true);
+      clearAuthState();
 
-    if (status === "authenticated" || devToken) {
-      refreshProfile();
-    } else {
-      setUser(null);
-      setTenants([]);
-      setSelectedTenantState(null);
-      setIsLoading(false);
-    }
-  }, [status, session?.error, devToken, refreshProfile]);
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        });
+      } catch (error) {
+        console.error("Failed to logout:", error);
+      }
 
-  // Sync access token to storage for API client
-  useEffect(() => {
-    const token = getAccessToken();
-    if (token) {
-      setStoredToken(token);
-    }
-  }, [getAccessToken]);
+      router.replace("/login");
+      setIsLoggingOut(false);
+    };
 
-  // Listen for unauthorized events from API client
+    void run();
+  }, [clearAuthState, router]);
+
   useEffect(() => {
     const handleUnauthorized = () => {
-      // Token expired or invalid - sign out user
-      console.warn("401 Unauthorized received, signing out...");
-      setUser(null);
-      setTenants([]);
-      setSelectedTenantState(null);
-      setDevTokenState(null);
-      
-      // Sign out from next-auth (but don't redirect to avoid loops)
-      // The UI will show login state automatically
-      if (status === "authenticated") {
-        signOut({ redirect: false });
+      if (isLoggingOut) return;
+      if (!user) {
+        clearAuthState();
+        return;
       }
+      logout();
     };
 
     window.addEventListener("auth:unauthorized", handleUnauthorized);
     return () => {
       window.removeEventListener("auth:unauthorized", handleUnauthorized);
     };
-  }, [status]);
+  }, [logout, isLoggingOut, user, clearAuthState]);
 
   const isAuthenticated = !!user;
   const isSuperAdmin = user?.isSuperAdmin || user?.roles?.includes("super_admin") || false;
-  const isTenantAdmin =
-    selectedTenant?.role === "TenantAdmin" || isSuperAdmin;
-
-  const login = () => signIn("keycloak");
-  const logout = () => {
-    setDevToken(null);
-    setSelectedTenant(null);
-    signOut();
-  };
+  const isTenantAdmin = selectedTenant?.role === "TenantAdmin" || isSuperAdmin;
 
   return (
     <AuthContext.Provider
@@ -269,8 +174,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSelectedTenant,
         login,
         logout,
-        devToken,
-        setDevToken,
         refreshProfile,
       }}
     >
@@ -286,4 +189,3 @@ export function useAuth() {
   }
   return context;
 }
-

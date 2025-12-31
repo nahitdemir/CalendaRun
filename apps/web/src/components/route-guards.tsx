@@ -1,7 +1,7 @@
 "use client";
 
-import { ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { ReactNode, useEffect } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { useTranslation } from "@/contexts/locale-context";
 import { EmptyState } from "@/components/empty-state";
@@ -9,6 +9,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface GuardProps {
   children: ReactNode;
+}
+
+function useAuthRedirect(isAuthenticated: boolean, isLoading: boolean) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams?.toString() ?? "";
+
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return;
+    const callbackUrl = search ? `${pathname}?${search}` : pathname;
+    router.replace(`/login?callbackUrl=${encodeURIComponent(callbackUrl || "/")}`);
+  }, [isLoading, isAuthenticated, pathname, search, router]);
 }
 
 function LoadingState() {
@@ -25,55 +38,26 @@ function LoadingState() {
 }
 
 export function AuthGuard({ children }: GuardProps) {
-  const { isAuthenticated, isLoading, login } = useAuth();
-  const { t } = useTranslation();
+  const { isAuthenticated, isLoading } = useAuth();
 
-  if (isLoading) {
+  useAuthRedirect(isAuthenticated, isLoading);
+
+  if (isLoading || !isAuthenticated) {
     return <LoadingState />;
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="container-app">
-        <EmptyState
-          variant="generic"
-          title={t("nav.signIn")}
-          description="Bu sayfayı görüntülemek için giriş yapmalısınız."
-          action={{
-            label: t("nav.signIn"),
-            onClick: login,
-          }}
-        />
-      </div>
-    );
   }
 
   return <>{children}</>;
 }
 
 export function TenantRequiredGuard({ children }: GuardProps) {
-  const { isAuthenticated, isLoading, selectedTenant, tenants, login } = useAuth();
+  const { isAuthenticated, isLoading, selectedTenant, tenants } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
 
-  if (isLoading) {
-    return <LoadingState />;
-  }
+  useAuthRedirect(isAuthenticated, isLoading);
 
-  if (!isAuthenticated) {
-    return (
-      <div className="container-app">
-        <EmptyState
-          variant="generic"
-          title={t("nav.signIn")}
-          description="Bu sayfayı görüntülemek için giriş yapmalısınız."
-          action={{
-            label: t("nav.signIn"),
-            onClick: login,
-          }}
-        />
-      </div>
-    );
+  if (isLoading || !isAuthenticated) {
+    return <LoadingState />;
   }
 
   if (!selectedTenant && tenants.length === 0) {
@@ -111,28 +95,14 @@ export function TenantRequiredGuard({ children }: GuardProps) {
 }
 
 export function TenantAdminGuard({ children }: GuardProps) {
-  const { isAuthenticated, isLoading, isTenantAdmin, selectedTenant, login } = useAuth();
+  const { isAuthenticated, isLoading, isTenantAdmin, selectedTenant } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
 
-  if (isLoading) {
-    return <LoadingState />;
-  }
+  useAuthRedirect(isAuthenticated, isLoading);
 
-  if (!isAuthenticated) {
-    return (
-      <div className="container-app">
-        <EmptyState
-          variant="generic"
-          title={t("nav.signIn")}
-          description="Bu sayfayı görüntülemek için giriş yapmalısınız."
-          action={{
-            label: t("nav.signIn"),
-            onClick: login,
-          }}
-        />
-      </div>
-    );
+  if (isLoading || !isAuthenticated) {
+    return <LoadingState />;
   }
 
   if (!selectedTenant) {
@@ -167,28 +137,14 @@ export function TenantAdminGuard({ children }: GuardProps) {
 }
 
 export function SuperAdminGuard({ children }: GuardProps) {
-  const { isAuthenticated, isLoading, isSuperAdmin, login } = useAuth();
+  const { isAuthenticated, isLoading, isSuperAdmin } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
 
-  if (isLoading) {
-    return <LoadingState />;
-  }
+  useAuthRedirect(isAuthenticated, isLoading);
 
-  if (!isAuthenticated) {
-    return (
-      <div className="container-app">
-        <EmptyState
-          variant="generic"
-          title={t("nav.signIn")}
-          description="Bu sayfayı görüntülemek için giriş yapmalısınız."
-          action={{
-            label: t("nav.signIn"),
-            onClick: login,
-          }}
-        />
-      </div>
-    );
+  if (isLoading || !isAuthenticated) {
+    return <LoadingState />;
   }
 
   if (!isSuperAdmin) {

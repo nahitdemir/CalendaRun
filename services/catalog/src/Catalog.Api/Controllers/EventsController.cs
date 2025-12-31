@@ -1,9 +1,13 @@
 using Calendarun.Common.Auth;
+using Calendarun.Common.Errors;
+using Calendarun.Common.Http;
 using Catalog.Application.Common;
+using Calendarun.Common.Time;
 using Catalog.Application.Events.Commands;
 using Catalog.Application.Events.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text;
 
 namespace Catalog.Api.Controllers;
 
@@ -11,7 +15,7 @@ namespace Catalog.Api.Controllers;
 [Route("events")]
 public class EventsController : ControllerBase
 {
-    private readonly IQueryHandler<GetEventsQuery, Result<List<EventDto>>> _getEventsHandler;
+    private readonly IQueryHandler<GetEventsQuery, Result<EventsPagedResult>> _getEventsHandler;
     private readonly IQueryHandler<GetEventByIdQuery, Result<EventDto>> _getEventByIdHandler;
     private readonly IQueryHandler<GetAdminEventsQuery, Result<List<AdminEventDto>>> _getAdminEventsHandler;
     private readonly ICommandHandler<CreateEventCommand, Result<CreateEventResult>> _createEventHandler;
@@ -19,7 +23,7 @@ public class EventsController : ControllerBase
     private readonly ICommandHandler<DeleteEventCommand, Result> _deleteEventHandler;
 
     public EventsController(
-        IQueryHandler<GetEventsQuery, Result<List<EventDto>>> getEventsHandler,
+        IQueryHandler<GetEventsQuery, Result<EventsPagedResult>> getEventsHandler,
         IQueryHandler<GetEventByIdQuery, Result<EventDto>> getEventByIdHandler,
         IQueryHandler<GetAdminEventsQuery, Result<List<AdminEventDto>>> getAdminEventsHandler,
         ICommandHandler<CreateEventCommand, Result<CreateEventResult>> createEventHandler,
@@ -35,14 +39,51 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
-    /// Get events - supports tenant filtering
+    /// Get events - supports tenant filtering and query parameters
+    /// Query params: city, from (ISO date), to (ISO date), distanceKm (comma-separated), page, pageSize
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetEvents(CancellationToken ct)
+    public async Task<IActionResult> GetEvents(
+        [FromQuery] string? city = null,
+        [FromQuery] string? from = null,
+        [FromQuery] string? to = null,
+        [FromQuery] string? distanceKm = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
     {
         var tenantId = GetTenantId();
-        var result = await _getEventsHandler.HandleAsync(new GetEventsQuery(tenantId), ct);
-        return ToActionResult(result, Ok);
+
+        // Parse date parameters - exact format: yyyy-MM-dd
+        DateTimeOffset? dateFrom = null;
+        DateTimeOffset? dateTo = null;
+
+        if (!DateQueryParser.TryParseDateFilter(from, "from", false, out dateFrom, out var fromError))
+        {
+            return BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, fromError ?? "Invalid date format", HttpContext));
+        }
+
+        if (!DateQueryParser.TryParseDateFilter(to, "to", true, out dateTo, out var toError))
+        {
+            return BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, toError ?? "Invalid date format", HttpContext));
+        }
+
+        // Validate pagination
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 20;
+
+        var query = new GetEventsQuery(
+            tenantId,
+            city,
+            dateFrom,
+            dateTo,
+            distanceKm,
+            page,
+            pageSize
+        );
+
+        var result = await _getEventsHandler.HandleAsync(query, ct);
+        return ToActionResult(result, pagedResult => Ok(pagedResult));
     }
 
     /// <summary>
@@ -57,6 +98,25 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
+    /// Get event as ICS calendar file
+    /// </summary>
+    [HttpGet("{id:guid}/ics")]
+    public async Task<IActionResult> GetEventIcs(Guid id, CancellationToken ct)
+    {
+        var tenantId = GetTenantId();
+        var result = await _getEventByIdHandler.HandleAsync(new GetEventByIdQuery(id, tenantId), ct);
+        if (!result.IsSuccess)
+        {
+            return ToActionResult(result, Ok);
+        }
+
+        var eventDto = result.Value!;
+        var icsContent = BuildIcs(eventDto);
+        var fileName = $"{Slugify(eventDto.Title)}.ics";
+        return File(Encoding.UTF8.GetBytes(icsContent), "text/calendar; charset=utf-8", fileName);
+    }
+
+    /// <summary>
     /// Get distinct cities from events
     /// </summary>
     [HttpGet("cities")]
@@ -66,10 +126,12 @@ public class EventsController : ControllerBase
         var result = await _getEventsHandler.HandleAsync(new GetEventsQuery(tenantId), ct);
         
         if (!result.IsSuccess)
-            return ToActionResult(result, _ => Ok());
+            return ToActionResult(result, _ => Ok(Array.Empty<string>()));
 
         var cities = result.Value!
+            .Items
             .Select(e => e.City)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
             .Distinct()
             .OrderBy(c => c)
             .ToList();
@@ -90,7 +152,10 @@ public class EventsController : ControllerBase
         var role = GetTenantRole();
 
         if (!tenantId.HasValue)
-            return BadRequest(new { error = "X-Tenant-Id header is required" });
+            return BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(
+                400,
+                $"{HeaderNames.TenantId} header is required",
+                HttpContext));
 
         if (!userId.HasValue)
             return Unauthorized();
@@ -181,29 +246,29 @@ public class EventsController : ControllerBase
 
     private Guid? GetTenantId()
     {
-        var header = Request.Headers["X-Tenant-Id"].FirstOrDefault();
+        var header = Request.Headers[HeaderNames.TenantId].FirstOrDefault();
         return Guid.TryParse(header, out var id) ? id : null;
     }
 
     private Guid? GetUserId()
     {
-        var header = Request.Headers["X-User-Id"].FirstOrDefault();
+        var header = Request.Headers[HeaderNames.UserId].FirstOrDefault();
         return Guid.TryParse(header, out var id) ? id : null;
     }
 
     private string? GetUserEmail()
     {
-        return Request.Headers["X-User-Email"].FirstOrDefault();
+        return Request.Headers[HeaderNames.UserEmail].FirstOrDefault();
     }
 
     private string? GetTenantRole()
     {
-        return Request.Headers["X-Tenant-Role"].FirstOrDefault();
+        return Request.Headers[HeaderNames.TenantRole].FirstOrDefault();
     }
 
     private bool IsSuperAdmin()
     {
-        return Request.Headers["X-Is-Super-Admin"].FirstOrDefault() == "True";
+        return Request.Headers[HeaderNames.IsSuperAdmin].FirstOrDefault() == "True";
     }
 
     private IActionResult ToActionResult<T>(Result<T> result, Func<T, IActionResult> onSuccess)
@@ -213,10 +278,10 @@ public class EventsController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(new { error = result.Error }),
-            ResultErrorType.Forbidden => Forbid(),
-            ResultErrorType.Conflict => Conflict(new { error = result.Error }),
-            _ => BadRequest(new { error = result.Error })
+            ResultErrorType.NotFound => NotFound(Calendarun.Common.Errors.ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, Calendarun.Common.Errors.ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(Calendarun.Common.Errors.ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
     }
 
@@ -227,11 +292,106 @@ public class EventsController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(new { error = result.Error }),
-            ResultErrorType.Forbidden => Forbid(),
-            ResultErrorType.Conflict => Conflict(new { error = result.Error }),
-            _ => BadRequest(new { error = result.Error })
+            ResultErrorType.NotFound => NotFound(Calendarun.Common.Errors.ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, Calendarun.Common.Errors.ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(Calendarun.Common.Errors.ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
+    }
+
+    private static string BuildIcs(EventDto eventDto)
+    {
+        var nowUtc = DateTime.UtcNow;
+        var startUtc = eventDto.StartAt.UtcDateTime;
+        var uid = $"{eventDto.Id}@calendarun";
+        var locationParts = new[] { eventDto.City, eventDto.CountryCode }
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .ToArray();
+        var location = locationParts.Length > 0 ? string.Join(", ", locationParts) : string.Empty;
+
+        var descriptionParts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(eventDto.Description))
+        {
+            descriptionParts.Add(eventDto.Description);
+        }
+        if (!string.IsNullOrWhiteSpace(eventDto.RegistrationUrl))
+        {
+            descriptionParts.Add($"Registration: {eventDto.RegistrationUrl}");
+        }
+        var description = string.Join("\n\n", descriptionParts);
+
+        var builder = new StringBuilder();
+        builder.AppendLine("BEGIN:VCALENDAR");
+        builder.AppendLine("VERSION:2.0");
+        builder.AppendLine("PRODID:-//Calendarun//Events//EN");
+        builder.AppendLine("CALSCALE:GREGORIAN");
+        builder.AppendLine("METHOD:PUBLISH");
+        builder.AppendLine("BEGIN:VEVENT");
+        builder.AppendLine($"UID:{uid}");
+        builder.AppendLine($"DTSTAMP:{FormatUtc(nowUtc)}");
+        builder.AppendLine($"DTSTART:{FormatUtc(startUtc)}");
+        builder.AppendLine($"SUMMARY:{EscapeIcs(eventDto.Title)}");
+        if (!string.IsNullOrWhiteSpace(location))
+        {
+            builder.AppendLine($"LOCATION:{EscapeIcs(location)}");
+        }
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            builder.AppendLine($"DESCRIPTION:{EscapeIcs(description)}");
+        }
+        if (!string.IsNullOrWhiteSpace(eventDto.RegistrationUrl))
+        {
+            builder.AppendLine($"URL:{EscapeIcs(eventDto.RegistrationUrl)}");
+        }
+        builder.AppendLine("END:VEVENT");
+        builder.AppendLine("END:VCALENDAR");
+
+        return builder.ToString();
+    }
+
+    private static string FormatUtc(DateTime dateTime)
+    {
+        return dateTime.ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'");
+    }
+
+    private static string EscapeIcs(string value)
+    {
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("\r", string.Empty)
+            .Replace("\n", "\\n")
+            .Replace(";", "\\;")
+            .Replace(",", "\\,");
+    }
+
+    private static string Slugify(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "event";
+        }
+
+        var builder = new StringBuilder();
+        var previousDash = false;
+
+        foreach (var ch in value.ToLowerInvariant())
+        {
+            if (ch <= 127 && char.IsLetterOrDigit(ch))
+            {
+                builder.Append(ch);
+                previousDash = false;
+                continue;
+            }
+
+            if (!previousDash)
+            {
+                builder.Append("-");
+                previousDash = true;
+            }
+        }
+
+        var slug = builder.ToString().Trim('-');
+        return string.IsNullOrWhiteSpace(slug) ? "event" : slug;
     }
 }
 
@@ -251,4 +411,3 @@ public record UpdateEventRequest(
     string? City,
     string? CountryCode,
     string? RegistrationUrl);
-

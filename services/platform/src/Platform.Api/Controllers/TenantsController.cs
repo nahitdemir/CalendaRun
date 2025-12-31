@@ -1,4 +1,5 @@
 using Calendarun.Common.Auth;
+using Calendarun.Common.Errors;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Application.Common;
@@ -98,10 +99,10 @@ public class TenantsController : ControllerBase
 
         return result.ErrorType switch
         {
-            ResultErrorType.NotFound => NotFound(new { error = result.Error }),
-            ResultErrorType.Forbidden => Forbid(),
-            ResultErrorType.Conflict => Conflict(new { error = result.Error }),
-            _ => BadRequest(new { error = result.Error })
+            ResultErrorType.NotFound => NotFound(Calendarun.Common.Errors.ProblemDetailsFactory.Create(404, result.Error ?? "Not found", HttpContext)),
+            ResultErrorType.Forbidden => StatusCode(403, Calendarun.Common.Errors.ProblemDetailsFactory.Create(403, result.Error ?? "Access denied", HttpContext)),
+            ResultErrorType.Conflict => Conflict(Calendarun.Common.Errors.ProblemDetailsFactory.Create(409, result.Error ?? "Conflict", HttpContext)),
+            _ => BadRequest(Calendarun.Common.Errors.ProblemDetailsFactory.Create(400, result.Error ?? "Bad request", HttpContext))
         };
     }
 }
@@ -113,4 +114,3 @@ public record CreateTenantRequest(
     string? DefaultLanguage,
     string? DefaultCurrency
 );
-

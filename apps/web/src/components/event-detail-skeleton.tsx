@@ -1,55 +1,36 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
+import { PageShell } from "@/components/listing";
 
 export function EventDetailSkeleton() {
   return (
-    <div className="container-app max-w-6xl">
+    <PageShell>
       {/* Back link */}
-      <Skeleton className="mb-6 h-6 w-32" />
+      <Skeleton className="h-6 w-32" />
 
-      {/* Title section */}
-      <div className="mb-6">
-        {/* Badges */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          <Skeleton className="h-6 w-16 rounded-full" />
-          <Skeleton className="h-6 w-20 rounded-full" />
-        </div>
-
-        {/* Title */}
-        <Skeleton className="mb-4 h-10 w-3/4" />
-
-        {/* Meta row */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-5 w-28" />
-          <Skeleton className="h-5 w-24" />
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="mb-8 flex flex-wrap gap-3">
-        <Skeleton className="h-11 w-40 rounded-lg" />
-        <Skeleton className="h-11 w-36 rounded-lg" />
-      </div>
-
-      {/* Cards grid */}
-      <div className="space-y-6">
-        {/* Registration card */}
-        <Card className="rounded-2xl border p-6">
-          <Skeleton className="mb-4 h-6 w-32" />
-          <Skeleton className="h-10 w-28 rounded-lg" />
-        </Card>
-
-        {/* Milestones card */}
-        <Card className="rounded-2xl border p-6">
-          <Skeleton className="mb-6 h-6 w-40" />
+      <div className="card-sports p-6 md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-4">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
+            <div className="flex flex-wrap gap-2">
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-6 w-24 rounded-full" />
+            </div>
+            <Skeleton className="h-10 w-3/4" />
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-5 w-28" />
+            </div>
           </div>
-        </Card>
 
-        {/* Event info card */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Skeleton className="h-10 w-40 rounded-lg" />
+            <Skeleton className="h-10 w-36 rounded-lg" />
+            <Skeleton className="h-10 w-32 rounded-lg" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <Card className="rounded-2xl border p-6">
           <Skeleton className="mb-4 h-6 w-32" />
           <div className="space-y-3">
@@ -58,8 +39,21 @@ export function EventDetailSkeleton() {
             <Skeleton className="h-4 w-4/6" />
           </div>
         </Card>
+
+        <div className="space-y-6">
+          <Card className="rounded-2xl border p-6">
+            <Skeleton className="mb-4 h-6 w-32" />
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="mt-3 h-4 w-4/5" />
+            <Skeleton className="mt-4 h-16 w-full" />
+          </Card>
+          <Card className="rounded-2xl border p-6">
+            <Skeleton className="mb-4 h-6 w-32" />
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="mt-2 h-4 w-1/2" />
+          </Card>
+        </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
-

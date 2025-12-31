@@ -8,6 +8,6 @@ public record DeletePlanCommand(
     Guid UserId,
     string? UserEmail,
     bool IsSuperAdmin,
+    bool IsTenantAdmin,
     string? TraceId
 ) : ICommand<Result>;
-

@@ -51,7 +51,11 @@ public class OutboxProcessor : BackgroundService
             .ToListAsync(ct);
 
         if (pendingMessages.Count == 0)
+        {
+            // Record a successful run even when there's nothing to process.
+            OutboxHealthCheck.RecordSuccessfulRun(0);
             return;
+        }
 
         _logger.LogInformation("📤 Processing {Count} outbox messages", pendingMessages.Count);
 
@@ -91,4 +95,3 @@ public class OutboxProcessor : BackgroundService
         OutboxHealthCheck.RecordSuccessfulRun(pendingMessages.Count);
     }
 }
-

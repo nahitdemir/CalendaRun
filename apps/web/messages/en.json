@@ -16,18 +16,38 @@
     "subtitle": "Never miss registrations. Add to your calendar, get reminders."
   },
   "filters": {
+    "title": "Filters",
     "city": "City",
     "from": "From",
     "to": "To",
+    "dateRange": "Date",
     "distance": "Distance",
     "apply": "Apply",
     "clear": "Clear",
     "allCities": "All Cities",
-    "allDistances": "All Distances"
+    "allDistances": "All Distances",
+    "sort": {
+      "label": "Sort",
+      "dateAsc": "Date (near → far)",
+      "dateDesc": "Date (far → near)"
+    }
+  },
+  "listing": {
+    "results": "{count} results",
+    "sortedBy": "Sort: {sort}",
+    "prev": "Previous",
+    "next": "Next"
   },
   "event": {
     "view": "View Details",
     "addToPlan": "Add to Plan",
+    "addedToPlan": "In Your Plan",
+    "viewPlan": "View Plan",
+    "removeFromPlan": "Remove from plan",
+    "removeFromPlanTitle": "Remove from your plan?",
+    "removeFromPlanDesc": "Are you sure you want to remove this event from your plan?",
+    "registerNow": "Register",
+    "eventWebsite": "Event website",
     "addToCalendar": "Add to Calendar",
     "registration": "Registration",
     "organizer": "Organizer",
@@ -38,6 +58,11 @@
     "registrationOpen": "Registration Open",
     "registrationClosed": "Registration Closed",
     "registrationOpenSoon": "Registration Opens Soon",
+    "registrationInfoOpen": "Registration is open. Secure your spot while it's available.",
+    "registrationInfoOpenSoon": "Registration opens soon. Keep an eye on the dates.",
+    "registrationInfoClosed": "Registration is closed. Check the event website for updates.",
+    "registrationLinkMissing": "Registration link is not available.",
+    "websiteLinkMissing": "Event website link is not available.",
     "upcoming": "Upcoming",
     "past": "Past",
     "description": "Description",
@@ -70,6 +95,11 @@
       "byDate": "By date",
       "byMilestone": "By important dates"
     },
+    "importantDates": "Important Dates",
+    "raceDay": "Race day",
+    "registrationOpen": "Registration opens",
+    "registrationClose": "Registration closes",
+    "addReminder": "Add reminder",
     "countdown": "{days} days to race",
     "nextImportantDate": "No important dates",
     "details": "Details",
@@ -87,7 +117,13 @@
       "edit": "Edit",
       "publish": "Publish",
       "delete": "Delete",
-      "unpublish": "Unpublish"
+      "unpublish": "Unpublish",
+      "status": {
+        "label": "Status",
+        "all": "All",
+        "published": "Published",
+        "draft": "Draft"
+      }
     },
     "users": {
       "title": "Users",
@@ -107,7 +143,12 @@
       "defaultLanguage": "Default Language",
       "defaultCurrency": "Default Currency",
       "status": "Status",
-      "members": "Members"
+      "members": "Members",
+      "sort": {
+        "label": "Sort",
+        "createdAt": "Created date",
+        "name": "Name"
+      }
     },
     "events": {
       "title": "All Events"
@@ -134,19 +175,28 @@
     "deleted": "Deleted successfully",
     "error": "Something went wrong",
     "copied": "Copied to clipboard",
-    "alreadyInPlan": "Already in your plan"
+    "alreadyInPlan": "Already in your plan",
+    "addedToCalendar": "Calendar file downloaded",
+    "calendarFailed": "Could not download the calendar file"
   },
   "common": {
     "loading": "Loading...",
     "save": "Save",
     "cancel": "Cancel",
     "confirm": "Confirm",
+    "undo": "Undo",
     "search": "Search",
     "actions": "Actions",
     "all": "All",
     "none": "None",
     "yes": "Yes",
     "no": "No"
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
   },
   "distances": {
     "5K": "5K",
@@ -156,4 +206,3 @@
     "ultra": "Ultra"
   }
 }
-

@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\services\catalog\src\Catalog.Application\Catalog.Application.csproj" />
     <ProjectReference Include="..\..\services\catalog\src\Catalog.Infrastructure\Catalog.Infrastructure.csproj" />
     <ProjectReference Include="..\..\services\catalog\src\Catalog.Domain\Catalog.Domain.csproj" />
+    <ProjectReference Include="..\..\building-blocks\Common\Calendarun.Common\Calendarun.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,4 +30,3 @@
   </ItemGroup>
 
 </Project>
-

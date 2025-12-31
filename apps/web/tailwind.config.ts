@@ -61,7 +61,8 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
-        display: ["var(--font-display)", "system-ui", "sans-serif"],
+        display: ["var(--font-accent)", "system-ui", "sans-serif"],
+        brand: ["var(--font-brand)", "var(--font-sans)", "system-ui", "sans-serif"],
       },
       spacing: {
         "18": "4.5rem",

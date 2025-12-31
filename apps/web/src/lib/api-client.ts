@@ -2,8 +2,11 @@
  * Typed API Client with ProblemDetails handling
  * Centralizes all API calls with proper error handling and tenant/auth headers
  */
+import { DEFAULT_DISTANCE_OPTIONS } from "@/lib/constants/distances";
+import type { MilestoneType } from "@/lib/constants/milestones";
+import type { PlanState } from "@/lib/constants/plan";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_BASE = process.env.NEXT_PUBLIC_BFF_URL || "";
 
 // ============ Types ============
 
@@ -13,6 +16,7 @@ export interface ProblemDetails {
   status: number;
   detail?: string;
   instance?: string;
+  code?: string;
   traceId?: string;
   errors?: Record<string, string[]>;
 }
@@ -42,6 +46,10 @@ export class ApiError extends Error {
   get traceId(): string | undefined {
     return this.problemDetails?.traceId;
   }
+
+  get code(): string | undefined {
+    return this.problemDetails?.code;
+  }
 }
 
 // ============ Request Configuration ============
@@ -52,31 +60,17 @@ interface RequestConfig {
   params?: Record<string, string | number | boolean | undefined>;
   skipTenant?: boolean;
   skipAuth?: boolean;
+  tenantId?: string;
 }
 
 // ============ Storage Keys ============
 
 const STORAGE_KEYS = {
-  accessToken: "calendarun-access-token",
   tenantId: "calendarun-selected-tenant-id",
   locale: "calendarun-locale",
 } as const;
 
-// ============ Token/Tenant Management ============
-
-export function getStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(STORAGE_KEYS.accessToken);
-}
-
-export function setStoredToken(token: string | null): void {
-  if (typeof window === "undefined") return;
-  if (token) {
-    localStorage.setItem(STORAGE_KEYS.accessToken, token);
-  } else {
-    localStorage.removeItem(STORAGE_KEYS.accessToken);
-  }
-}
+// ============ Tenant Management ============
 
 export function getStoredTenantId(): string | null {
   if (typeof window === "undefined") return null;
@@ -127,17 +121,11 @@ async function request<T>(
     "Accept-Language": getStoredLocale(),
   };
 
-  // Add auth token
-  if (!skipAuth) {
-    const token = getStoredToken();
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-  }
+  // Auth handled by BFF cookies; do not attach tokens in the client.
 
   // Add tenant header
   if (!skipTenant) {
-    const tenantId = getStoredTenantId();
+    const tenantId = config.tenantId ?? getStoredTenantId();
     if (tenantId) {
       headers["X-Tenant-Id"] = tenantId;
     }
@@ -148,14 +136,13 @@ async function request<T>(
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    credentials: "include",
   });
 
   // Handle errors
   if (!response.ok) {
     // Handle 401 Unauthorized - clear token (auth context will handle redirect)
     if (response.status === 401) {
-      setStoredToken(null);
-      // Dispatch custom event so auth context can react
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("auth:unauthorized"));
       }
@@ -192,8 +179,11 @@ async function request<T>(
 // ============ HTTP Method Helpers ============
 
 export const api = {
-  get: <T>(endpoint: string, params?: Record<string, string | number | boolean | undefined>) =>
-    request<T>(endpoint, { method: "GET", params }),
+  get: <T>(
+    endpoint: string,
+    params?: Record<string, string | number | boolean | undefined>,
+    config?: Omit<RequestConfig, "method" | "body" | "params">
+  ) => request<T>(endpoint, { method: "GET", params, ...config }),
 
   post: <T>(endpoint: string, body?: unknown) =>
     request<T>(endpoint, { method: "POST", body }),
@@ -250,7 +240,7 @@ export interface Event {
   registrationUrl: string | null;
   organizerName?: string;
   organizerUrl?: string;
-  distances?: string[];
+  distances?: string | string[]; // Backend sends comma-separated string (e.g., "5,10,21"), frontend may use array
   createdAt: string;
   createdBy: string | null;
   updatedAt: string | null;
@@ -261,7 +251,7 @@ export interface Event {
 export interface EventMilestone {
   id: string;
   eventId: string;
-  type: "REG_OPEN" | "REG_CLOSE" | "EVENT_START" | "EVENT_END" | "CUSTOM";
+  type: MilestoneType;
   label: string;
   date: string;
   description?: string;
@@ -272,10 +262,20 @@ export interface PlanItem {
   eventId: string;
   userId?: string;
   tenantId?: string;
-  state: "Active" | "Registered" | "Completed" | "Cancelled" | number; // Backend sends enum as number
+  state: PlanState | number; // Backend sends enum as number
   timezone?: string;
   createdAt: string;
   event?: Event;
+}
+
+export interface CreatePlanResponse {
+  planItemId: string;
+  tenantId?: string | null;
+  userId: string;
+  eventId: string;
+  state: PlanState | number;
+  createdAt: string;
+  timezone: string;
 }
 
 export interface EventFilters {
@@ -300,15 +300,80 @@ export interface PagedResult<T> {
 // --- Auth / Profile ---
 
 export const authApi = {
-  getMe: () => api.get<UserProfile>("/api/me"),
+  getMe: () => api.get<UserProfile>("/api/auth/me"),
   getMyTenants: () => api.get<TenantMembership[]>("/api/me/tenants"),
+};
+
+// --- Settings ---
+
+export interface DistanceOption {
+  km: number;
+  label: string;
+  displayOrder: number;
+}
+
+export const settingsApi = {
+  getDistances: async (tenantId?: string): Promise<DistanceOption[]> => {
+    try {
+      const response = await api.get<{
+        key: string;
+        value: DistanceOption[];
+        tenantId: string | null;
+      }>("/api/settings/event.distances", undefined, {
+        skipAuth: true,
+        tenantId,
+      });
+
+      // Extract value from response
+      if (response && response.value && Array.isArray(response.value)) {
+        return response.value;
+      }
+      
+      // If response.value is not an array, it might be the value directly (if API returns just the value)
+      if (Array.isArray(response)) {
+        return response;
+      }
+      
+    } catch (error) {
+      // On error, return fallback immediately
+    }
+    
+    return [...DEFAULT_DISTANCE_OPTIONS];
+  },
 };
 
 // --- Events (Public) ---
 
 export const eventsApi = {
-  list: (filters?: EventFilters) =>
-    api.get<Event[]>("/api/events", filters as Record<string, string | number | boolean | undefined>),
+  list: async (filters?: EventFilters): Promise<PagedResult<Event>> => {
+    // Map frontend filter names to backend query param names
+    const params: Record<string, string | number | boolean | undefined> = {};
+    if (filters?.city) params.city = filters.city;
+    if (filters?.dateFrom) params.from = filters.dateFrom;
+    if (filters?.dateTo) params.to = filters.dateTo;
+    if (filters?.distances) params.distanceKm = filters.distances; // Map distances -> distanceKm
+    if (filters?.page) params.page = filters.page;
+    if (filters?.pageSize) params.pageSize = filters.pageSize;
+    
+    // API returns either array or PagedResult - normalize to PagedResult
+    const response = await api.get<Event[] | PagedResult<Event>>("/api/events", params);
+    
+    // If response is an array, convert to PagedResult
+    if (Array.isArray(response)) {
+      const page = filters?.page || 1;
+      const pageSize = filters?.pageSize || 20;
+      return {
+        items: response,
+        totalCount: response.length,
+        page,
+        pageSize,
+        totalPages: Math.ceil(response.length / pageSize),
+      };
+    }
+    
+    // If response is already PagedResult, return as-is
+    return response;
+  },
 
   getById: (id: string) => api.get<Event>(`/api/events/${id}`),
 
@@ -324,7 +389,21 @@ export const eventsApi = {
 export const plansApi = {
   list: () => api.get<PlanItem[]>("/api/plan"),
 
-  create: (eventId: string) => api.post<PlanItem>("/api/plan", { eventId }),
+  create: async (eventId: string): Promise<PlanItem> => {
+    const response = await api.post<PlanItem | CreatePlanResponse>("/api/plan", { eventId });
+    if ("planItemId" in response) {
+      return {
+        id: response.planItemId,
+        eventId: response.eventId,
+        userId: response.userId,
+        tenantId: response.tenantId ?? undefined,
+        state: response.state,
+        createdAt: response.createdAt,
+        timezone: response.timezone,
+      };
+    }
+    return response;
+  },
 
   updateState: (id: string, state: "Registered" | "Completed") =>
     api.patch<PlanItem>(`/api/plan/${id}`, { state }),
@@ -383,4 +462,3 @@ export const superAdminApi = {
   listAllEvents: (params?: { tenantId?: string; page?: number; pageSize?: number }) =>
     api.get<PagedResult<Event>>("/api/super-admin/events", params as Record<string, string | number | boolean | undefined>),
 };
-

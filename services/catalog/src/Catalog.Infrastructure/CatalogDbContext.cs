@@ -24,10 +24,15 @@ public class CatalogDbContext : DbContext
             entity.Property(e => e.City).IsRequired().HasMaxLength(200);
             entity.Property(e => e.CountryCode).IsRequired().HasMaxLength(10);
             entity.Property(e => e.RegistrationUrl).HasMaxLength(1000);
+            entity.Property(e => e.Distances)
+                .HasColumnType("integer[]"); // PostgreSQL array type
             
             // Tenant isolation index
             entity.HasIndex(e => e.TenantId);
             entity.HasIndex(e => new { e.TenantId, e.StartAt });
+            // GIN index for array search performance
+            entity.HasIndex(e => e.Distances)
+                .HasMethod("gin");
         });
 
         // AuditLog
@@ -62,6 +67,7 @@ public class CatalogDbContext : DbContext
                 City = "Istanbul",
                 CountryCode = Defaults.CountryCode,
                 RegistrationUrl = "https://istanbulmarathon.org",
+                Distances = new[] { 10, 21, 42 }, // 10K, Half Marathon, Full Marathon
                 CreatedAt = seedTime
             },
             new Event
@@ -74,6 +80,7 @@ public class CatalogDbContext : DbContext
                 City = "Nevşehir",
                 CountryCode = Defaults.CountryCode,
                 RegistrationUrl = "https://cappadociaultra.com",
+                Distances = new[] { 100 }, // Ultra (100km)
                 CreatedAt = seedTime
             },
             new Event
@@ -86,6 +93,7 @@ public class CatalogDbContext : DbContext
                 City = "Antalya",
                 CountryCode = Defaults.CountryCode,
                 RegistrationUrl = "https://antalyahalf.com",
+                Distances = new[] { 5, 10, 21 }, // 5K, 10K, Half Marathon
                 CreatedAt = seedTime
             }
         );

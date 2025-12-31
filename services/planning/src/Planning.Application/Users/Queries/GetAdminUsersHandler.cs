@@ -21,7 +21,7 @@ public class GetAdminUsersHandler : IQueryHandler<GetAdminUsersQuery, Result<Lis
         if (!query.IsSuperAdmin)
         {
             if (!query.TenantId.HasValue)
-                return Result<List<AdminUserDto>>.Failure("X-Tenant-Id header is required");
+                return Result<List<AdminUserDto>>.Failure("Tenant ID is required");
 
             usersQuery = usersQuery.Where(u => u.TenantId == query.TenantId.Value);
         }
@@ -40,4 +40,3 @@ public class GetAdminUsersHandler : IQueryHandler<GetAdminUsersQuery, Result<Lis
         return Result<List<AdminUserDto>>.Success(users);
     }
 }
-

@@ -1,13 +1,16 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SuperAdminGuard } from "@/components/route-guards";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAdminEvents, Event } from "@/lib/api";
+import { superAdminApi, Event } from "@/lib/api-client";
 import { CalendarDays, MapPin, Globe, ExternalLink, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
+import { PageHeader } from "@/components/page-header";
+import { ListPagination, PageShell, ResultsHeader } from "@/components/listing";
+import { useListQueryParams } from "@/hooks/use-list-query-params";
 
 function formatDate(dateStr: string) {
   try {
@@ -18,32 +21,45 @@ function formatDate(dateStr: string) {
 }
 
 function EventsPageContent() {
-  const { data: session } = useSession();
-
-  const { data: events, isLoading } = useQuery({
-    queryKey: ["super-admin-events"],
-    queryFn: () => getAdminEvents(session?.accessToken!),
-    enabled: !!session?.accessToken,
+  const { getNumberParam, updateParams } = useListQueryParams({
+    defaults: { pageSize: 20 },
   });
+  const page = getNumberParam("page", 1);
+  const pageSize = getNumberParam("pageSize", 20);
+
+  const { data: eventsPage, isLoading } = useQuery({
+    queryKey: ["super-admin-events", page, pageSize],
+    queryFn: () => superAdminApi.listAllEvents({ page, pageSize }),
+  });
+
+  const handlePageChange = useCallback(
+    (nextPage: number) => {
+      updateParams({ page: nextPage }, { resetPage: false });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [updateParams]
+  );
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <PageShell>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="container py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">All Events</h1>
-        <p className="text-muted-foreground">
-          View all events across all tenants (read-only)
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="All Events"
+        subtitle="View all events across all tenants (read-only)"
+      />
 
-      {events && events.length === 0 ? (
+      <ResultsHeader count={eventsPage?.totalCount ?? 0} />
+
+      {eventsPage && eventsPage.items.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-20">
             <CalendarDays className="h-12 w-12 text-muted-foreground mb-4" />
@@ -55,7 +71,7 @@ function EventsPageContent() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {events?.map((event) => (
+          {eventsPage?.items.map((event) => (
             <Card key={event.id} className="hover:border-primary/30 transition-colors">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -121,7 +137,14 @@ function EventsPageContent() {
           ))}
         </div>
       )}
-    </div>
+
+      <ListPagination
+        page={page}
+        pageSize={pageSize}
+        total={eventsPage?.totalCount}
+        onPageChange={handlePageChange}
+      />
+    </PageShell>
   );
 }
 
@@ -132,4 +155,3 @@ export default function SuperAdminEventsPage() {
     </SuperAdminGuard>
   );
 }
-

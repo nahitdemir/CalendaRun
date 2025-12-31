@@ -102,6 +102,9 @@ namespace Catalog.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<int[]>("Distances")
+                        .HasColumnType("integer[]");
+
                     b.Property<string>("RegistrationUrl")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -126,6 +129,10 @@ namespace Catalog.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Distances");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Distances"), "gin");
+
                     b.HasIndex("TenantId");
 
                     b.HasIndex("TenantId", "StartAt");
@@ -140,6 +147,7 @@ namespace Catalog.Infrastructure.Migrations
                             CountryCode = "TR",
                             CreatedAt = new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Description = "44th Istanbul Marathon - intercontinental running experience",
+                            Distances = new[] { 10, 21, 42 },
                             RegistrationUrl = "https://istanbulmarathon.org",
                             StartAt = new DateTimeOffset(new DateTime(2025, 1, 5, 8, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 3, 0, 0, 0)),
                             Title = "Istanbul Marathon 2025"
@@ -151,6 +159,7 @@ namespace Catalog.Infrastructure.Migrations
                             CountryCode = "TR",
                             CreatedAt = new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Description = "100km trail run through fairy chimneys",
+                            Distances = new[] { 100 },
                             RegistrationUrl = "https://cappadociaultra.com",
                             StartAt = new DateTimeOffset(new DateTime(2025, 1, 3, 7, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 3, 0, 0, 0)),
                             Title = "Cappadocia Ultra Trail"
@@ -162,6 +171,7 @@ namespace Catalog.Infrastructure.Migrations
                             CountryCode = "TR",
                             CreatedAt = new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Description = "Scenic coastal run along Turkish Riviera",
+                            Distances = new[] { 5, 10, 21 },
                             RegistrationUrl = "https://antalyahalf.com",
                             StartAt = new DateTimeOffset(new DateTime(2025, 1, 2, 9, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 3, 0, 0, 0)),
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),

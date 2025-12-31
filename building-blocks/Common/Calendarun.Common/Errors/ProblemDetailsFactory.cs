@@ -38,7 +38,8 @@ public static class ProblemDetailsFactory
             Instance = context?.Request.Path,
             Extensions =
             {
-                ["traceId"] = context?.TraceIdentifier
+                ["traceId"] = context?.TraceIdentifier,
+                ["code"] = GetCode(statusCode)
             }
         };
     }
@@ -67,4 +68,3 @@ public static class ProblemDetailsFactory
         _ => "error"
     };
 }
-
