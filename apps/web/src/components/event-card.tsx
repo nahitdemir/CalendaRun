@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "@/contexts/locale-context";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DistanceBadge, Distance } from "@/components/distance-badge";
 import { eventsApi } from "@/lib/api-client";
+import type { PlanState } from "@/lib/constants/plan";
 import {
   Calendar,
   MapPin,
@@ -23,6 +25,10 @@ import {
   Trash2,
   Plus,
   Loader2,
+  CheckCircle2,
+  Trophy,
+  Clock,
+  LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -44,8 +50,10 @@ interface EventCardProps {
   onRemoveFromPlan?: () => void;
   isInPlan?: boolean;
   planItemId?: string;
+  planState?: PlanState;
   isPlanActionLoading?: boolean;
   showActions?: boolean;
+  extraActions?: ReactNode;
   className?: string;
 }
 
@@ -55,8 +63,10 @@ export function EventCard({
   onAddToPlan,
   onRemoveFromPlan,
   isInPlan = false,
+  planState,
   isPlanActionLoading = false,
   showActions = true,
+  extraActions,
   className,
 }: EventCardProps) {
   const { t, locale } = useTranslation();
@@ -93,6 +103,35 @@ export function EventCard({
   const status = statusConfig[event.registrationStatus];
   const StatusIcon = status.icon;
 
+  const planStatusConfig: Record<
+    PlanState,
+    { label: string; variant: "muted" | "secondary"; icon: LucideIcon }
+  > = {
+    Active: {
+      label: t("plan.status.planned"),
+      variant: "muted",
+      icon: Clock,
+    },
+    Registered: {
+      label: t("plan.status.registered"),
+      variant: "secondary",
+      icon: CheckCircle2,
+    },
+    Completed: {
+      label: t("plan.status.completed"),
+      variant: "secondary",
+      icon: Trophy,
+    },
+    Cancelled: {
+      label: t("plan.status.planned"),
+      variant: "muted",
+      icon: Clock,
+    },
+  };
+
+  const planStatus = planState ? planStatusConfig[planState] : null;
+  const PlanStatusIcon = planStatus?.icon;
+
   const handleViewPlan = () => {
     router.push("/plan");
   };
@@ -102,8 +141,8 @@ export function EventCard({
     window.open(icsUrl, "_blank");
   };
 
-  const planAction = onAddToPlan ? (
-    isInPlan ? (
+  const planAction = isInPlan ? (
+    onRemoveFromPlan ? (
       <div
         data-state="added"
         className={cn(
@@ -115,7 +154,7 @@ export function EventCard({
           variant="outline"
           size="default"
           onClick={onRemoveFromPlan}
-          disabled={isPlanActionLoading || !onRemoveFromPlan}
+          disabled={isPlanActionLoading}
           className={cn(
             "rounded-r-none border-destructive/40 text-destructive hover:bg-destructive/10",
             "gap-2"
@@ -155,21 +194,21 @@ export function EventCard({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    ) : (
-      <Button
-        variant="accent"
-        size="default"
-        onClick={onAddToPlan}
-        disabled={isPlanActionLoading}
-      >
-        {isPlanActionLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Plus className="h-4 w-4" />
-        )}
-        {t("event.addToPlan")}
-      </Button>
-    )
+    ) : null
+  ) : onAddToPlan ? (
+    <Button
+      variant="accent"
+      size="default"
+      onClick={onAddToPlan}
+      disabled={isPlanActionLoading}
+    >
+      {isPlanActionLoading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Plus className="h-4 w-4" />
+      )}
+      {t("event.addToPlan")}
+    </Button>
   ) : null;
 
   return (
@@ -184,6 +223,12 @@ export function EventCard({
       <div className="space-y-3">
         {/* Badges */}
         <div className="flex flex-wrap items-center gap-2">
+          {planStatus && (
+            <Badge variant={planStatus.variant} className="gap-1">
+              {PlanStatusIcon && <PlanStatusIcon className="h-4 w-4" />}
+              {planStatus.label}
+            </Badge>
+          )}
           {event.distances.map((d) => (
             <DistanceBadge key={d} distance={d} size="sm" />
           ))}
@@ -214,6 +259,7 @@ export function EventCard({
       {/* Right: Actions */}
       {showActions && (
         <div className="mt-4 flex flex-wrap items-center gap-2 md:mt-0 md:flex-col md:items-end">
+          {extraActions}
           {planAction}
 
           {event.registrationStatus === "open" && event.registrationUrl ? (

@@ -10,28 +10,26 @@ import { plansApi, PlanItem, eventsApi, Event } from "@/lib/api-client";
 import { normalizePlanState } from "@/lib/normalizers/plan";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
 import {
+  EventSortSelect,
   ListPagination,
   ListToolbar,
   PageShell,
   ResultsHeader,
 } from "@/components/listing";
-import { PlanItemCard } from "@/components/plan-item-card";
+import { EventCard } from "@/components/event-card";
 import { PlanPageSkeleton } from "@/components/plan-page-skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Flag } from "lucide-react";
+import { CheckCircle2, Flag, Loader2, Trophy } from "lucide-react";
 import { AuthGuard } from "@/components/route-guards";
 import { useListQueryParams } from "@/hooks/use-list-query-params";
+import { useDistances } from "@/hooks/use-distances";
+import { mapEventToCard } from "@/lib/normalizers/event";
+import type { Distance } from "@/components/distance-badge";
+import type { EventSortValue } from "@/components/listing/event-sort-select";
 
 type TabValue = "upcoming" | "completed" | "all";
-type SortValue = "date" | "milestone";
 
 function PlanPageContent() {
   const router = useRouter();
@@ -39,10 +37,11 @@ function PlanPageContent() {
   const { t, locale } = useTranslation();
   const toast = useToast();
   const { onError } = useApiMutation();
+  const { distances: availableDistances, kmToDistance } = useDistances();
   const { getParam, getNumberParam, updateParams } =
     useListQueryParams({
     filterKeys: ["tab", "sort"],
-    defaults: { tab: "upcoming", sort: "date", pageSize: 20 },
+    defaults: { tab: "upcoming", sort: "date_asc", pageSize: 20 },
     debounceMs: 400,
   });
 
@@ -50,8 +49,9 @@ function PlanPageContent() {
   const activeTab: TabValue =
     tabParam === "completed" || tabParam === "all" ? tabParam : "upcoming";
 
-  const sortParam = getParam("sort", "date");
-  const sortBy: SortValue = sortParam === "milestone" ? "milestone" : "date";
+  const sortParam = getParam("sort", "date_asc");
+  const sortBy: EventSortValue =
+    sortParam === "date_desc" ? "date_desc" : "date_asc";
 
   const page = getNumberParam("page", 1);
   const pageSize = getNumberParam("pageSize", 20);
@@ -149,7 +149,7 @@ function PlanPageContent() {
   const filteredAndSortedPlans = useMemo(() => {
     if (!plans) return [];
 
-    let filtered: PlanItem[] = [];
+    let filtered = plans;
 
     // Filter by tab
     switch (activeTab) {
@@ -170,13 +170,9 @@ function PlanPageContent() {
     const sorted = [...filtered].sort((a, b) => {
       if (!a.event || !b.event) return 0;
 
-      if (sortBy === "date") {
-        return new Date(a.event.startAt).getTime() - new Date(b.event.startAt).getTime();
-      } else {
-        // Sort by milestone (nearest upcoming milestone first)
-        // For now, fallback to date sorting
-        return new Date(a.event.startAt).getTime() - new Date(b.event.startAt).getTime();
-      }
+      const timeA = new Date(a.event.startAt).getTime();
+      const timeB = new Date(b.event.startAt).getTime();
+      return sortBy === "date_desc" ? timeB - timeA : timeA - timeB;
     });
 
     return sorted;
@@ -187,27 +183,22 @@ function PlanPageContent() {
     return filteredAndSortedPlans.slice(start, start + pageSize);
   }, [filteredAndSortedPlans, page, pageSize]);
 
-  // Group by month
-  const groupedPlans = useMemo(() => {
-    const groups: Record<string, PlanItem[]> = {};
+  const defaultDistance = useMemo<Distance>(() => {
+    return availableDistances[0] || ("21K" as Distance);
+  }, [availableDistances]);
 
-    paginatedPlans.forEach((plan) => {
-      if (!plan.event) return;
-
-      const date = new Date(plan.event.startAt);
-      const monthKey = new Intl.DateTimeFormat(locale === "tr" ? "tr-TR" : "en-US", {
-        month: "long",
-        year: "numeric",
-      }).format(date);
-
-      if (!groups[monthKey]) {
-        groups[monthKey] = [];
-      }
-      groups[monthKey].push(plan);
-    });
-
-    return groups;
-  }, [paginatedPlans, locale]);
+  const planCards = useMemo(() => {
+    if (!kmToDistance || Object.keys(kmToDistance).length === 0) return [];
+    return paginatedPlans
+      .map((plan) => {
+        if (!plan.event) return null;
+        return {
+          plan,
+          card: mapEventToCard(plan.event, kmToDistance, defaultDistance),
+        };
+      })
+      .filter((item): item is { plan: PlanItem; card: ReturnType<typeof mapEventToCard> } => item !== null);
+  }, [paginatedPlans, kmToDistance, defaultDistance]);
 
   // Calculate stats for subtitle
   const stats = useMemo(() => {
@@ -248,9 +239,16 @@ function PlanPageContent() {
   );
 
   const handleSortChange = useCallback(
-    (value: string) => {
-      const nextSort: SortValue = value === "milestone" ? "milestone" : "date";
-      updateParams({ sort: nextSort });
+    (value: EventSortValue) => {
+      updateParams({ sort: value });
+    },
+    [updateParams]
+  );
+
+  const handlePageChange = useCallback(
+    (nextPage: number) => {
+      updateParams({ page: nextPage }, { resetPage: false });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     },
     [updateParams]
   );
@@ -284,30 +282,21 @@ function PlanPageContent() {
 
       <ListToolbar
         left={
-          <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList>
-              <TabsTrigger value="upcoming">{t("plan.tabs.upcoming")}</TabsTrigger>
-              <TabsTrigger value="completed">{t("plan.tabs.completed")}</TabsTrigger>
-              <TabsTrigger value="all">{t("plan.tabs.all")}</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex flex-wrap items-center gap-3">
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
+              <TabsList>
+                <TabsTrigger value="upcoming">{t("plan.tabs.upcoming")}</TabsTrigger>
+                <TabsTrigger value="completed">{t("plan.tabs.completed")}</TabsTrigger>
+                <TabsTrigger value="all">{t("plan.tabs.all")}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <ResultsHeader count={filteredAndSortedPlans.length} className="w-auto" />
+          </div>
         }
         right={
-          filteredAndSortedPlans.length > 0 ? (
-            <Select value={sortBy} onValueChange={handleSortChange}>
-              <SelectTrigger className="h-9 min-w-[160px] max-w-[220px]">
-                <SelectValue placeholder={t("plan.sort.label")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date">{t("plan.sort.byDate")}</SelectItem>
-                <SelectItem value="milestone">{t("plan.sort.byMilestone")}</SelectItem>
-              </SelectContent>
-            </Select>
-          ) : null
+          <EventSortSelect value={sortBy} onChange={handleSortChange} />
         }
       />
-
-      <ResultsHeader count={filteredAndSortedPlans.length} />
 
       {filteredAndSortedPlans.length === 0 ? (
         <EmptyState
@@ -337,45 +326,62 @@ function PlanPageContent() {
         />
       ) : (
         <>
-          <div className="space-y-8">
-            {Object.entries(groupedPlans)
-              .sort(([a], [b]) => {
-                const dateA = new Date(a);
-                const dateB = new Date(b);
-                return dateA.getTime() - dateB.getTime();
-              })
-              .map(([month, monthPlans]) => (
-                <div key={month}>
-                  <div className="mb-4 flex items-center gap-3">
-                    <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                      {month}
-                    </h2>
-                    <div className="h-px flex-1 bg-border" />
-                  </div>
-                  <div className="space-y-4">
-                    {monthPlans.map((plan) => (
-                      <PlanItemCard
-                        key={plan.id}
-                        plan={plan}
-                        isLoading={
-                          updateStateMutation.isPending || deleteMutation.isPending
-                        }
-                        onUpdateState={handleUpdateState}
-                        onDelete={handleDelete}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+          <div className="space-y-4">
+            {planCards.map(({ plan, card }) => {
+              const planState = normalizePlanState(plan.state);
+
+              return (
+                <EventCard
+                  key={plan.id}
+                  event={card}
+                  planState={planState}
+                  isInPlan
+                  onRemoveFromPlan={() => handleDelete(plan.id)}
+                  onView={() => router.push(`/events/${plan.eventId}`)}
+                  isPlanActionLoading={
+                    updateStateMutation.isPending || deleteMutation.isPending
+                  }
+                  extraActions={
+                    planState === "Active" ? (
+                      <Button
+                        variant="accent"
+                        onClick={() => handleUpdateState(plan.id, "Registered")}
+                        disabled={updateStateMutation.isPending || deleteMutation.isPending}
+                        className="gap-2"
+                      >
+                        {updateStateMutation.isPending || deleteMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                        {t("plan.markRegistered")}
+                      </Button>
+                    ) : planState === "Registered" ? (
+                      <Button
+                        variant="accent"
+                        onClick={() => handleUpdateState(plan.id, "Completed")}
+                        disabled={updateStateMutation.isPending || deleteMutation.isPending}
+                        className="gap-2"
+                      >
+                        {updateStateMutation.isPending || deleteMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trophy className="h-4 w-4" />
+                        )}
+                        {t("plan.markCompleted")}
+                      </Button>
+                    ) : null
+                  }
+                />
+              );
+            })}
           </div>
 
           <ListPagination
             page={page}
             pageSize={pageSize}
             total={filteredAndSortedPlans.length}
-            onPageChange={(nextPage) =>
-              updateParams({ page: nextPage }, { resetPage: false })
-            }
+            onPageChange={handlePageChange}
           />
         </>
       )}

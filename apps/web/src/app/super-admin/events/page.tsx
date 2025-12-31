@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import { SuperAdminGuard } from "@/components/route-guards";
@@ -8,6 +9,9 @@ import { getAdminEvents, Event } from "@/lib/api";
 import { CalendarDays, MapPin, Globe, ExternalLink, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
+import { PageHeader } from "@/components/page-header";
+import { ListPagination, PageShell, ResultsHeader } from "@/components/listing";
+import { useListQueryParams } from "@/hooks/use-list-query-params";
 
 function formatDate(dateStr: string) {
   try {
@@ -19,6 +23,11 @@ function formatDate(dateStr: string) {
 
 function EventsPageContent() {
   const { data: session } = useSession();
+  const { getNumberParam, updateParams } = useListQueryParams({
+    defaults: { pageSize: 20 },
+  });
+  const page = getNumberParam("page", 1);
+  const pageSize = getNumberParam("pageSize", 20);
 
   const { data: events, isLoading } = useQuery({
     queryKey: ["super-admin-events"],
@@ -26,22 +35,38 @@ function EventsPageContent() {
     enabled: !!session?.accessToken,
   });
 
+  const paginatedEvents = useMemo(() => {
+    if (!events) return [];
+    const start = (page - 1) * pageSize;
+    return events.slice(start, start + pageSize);
+  }, [events, page, pageSize]);
+
+  const handlePageChange = useCallback(
+    (nextPage: number) => {
+      updateParams({ page: nextPage }, { resetPage: false });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [updateParams]
+  );
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <PageShell>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="container py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">All Events</h1>
-        <p className="text-muted-foreground">
-          View all events across all tenants (read-only)
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="All Events"
+        subtitle="View all events across all tenants (read-only)"
+      />
+
+      <ResultsHeader count={events?.length ?? 0} />
 
       {events && events.length === 0 ? (
         <Card>
@@ -55,7 +80,7 @@ function EventsPageContent() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {events?.map((event) => (
+          {paginatedEvents.map((event) => (
             <Card key={event.id} className="hover:border-primary/30 transition-colors">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -121,7 +146,14 @@ function EventsPageContent() {
           ))}
         </div>
       )}
-    </div>
+
+      <ListPagination
+        page={page}
+        pageSize={pageSize}
+        total={events?.length}
+        onPageChange={handlePageChange}
+      />
+    </PageShell>
   );
 }
 
@@ -132,4 +164,3 @@ export default function SuperAdminEventsPage() {
     </SuperAdminGuard>
   );
 }
-

@@ -5,12 +5,13 @@ import { useAuth } from "@/contexts/auth-context";
 import { useTranslation } from "@/contexts/locale-context";
 import { adminUsersApi } from "@/lib/api-client";
 import { TenantAdminGuard } from "@/components/route-guards";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Users, Mail, Shield, UserCheck } from "lucide-react";
+import { PageShell, ResultsHeader } from "@/components/listing";
 
 function AdminUsersContent() {
   const { selectedTenant } = useAuth();
@@ -34,7 +35,7 @@ function AdminUsersContent() {
 
   if (isLoading) {
     return (
-      <div className="container-app space-y-6">
+      <PageShell>
         <Skeleton className="h-10 w-48" />
         <div className="rounded-2xl border">
           <div className="p-4">
@@ -49,12 +50,12 @@ function AdminUsersContent() {
             ))}
           </div>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="container-app space-y-6">
+    <PageShell>
       <PageHeader
         title={t("admin.users.title")}
         subtitle={selectedTenant?.tenantName}
@@ -73,6 +74,7 @@ function AdminUsersContent() {
         />
       ) : (
         <>
+          <ResultsHeader count={users?.length ?? 0} />
           <div className="rounded-2xl border bg-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -182,7 +184,7 @@ function AdminUsersContent() {
           )}
         </>
       )}
-    </div>
+    </PageShell>
   );
 }
 

@@ -9,22 +9,23 @@ import { useToast } from "@/components/ui/toast";
 import { useApiMutation } from "@/hooks/use-api-error";
 import { eventsApi, plansApi, Event, PagedResult, PlanItem, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
 import { FilterBar, FilterValues } from "@/components/filter-bar";
 import { EventCard } from "@/components/event-card";
 import { EventCardSkeletonList } from "@/components/event-card-skeleton";
 import { EmptyState } from "@/components/empty-state";
-import { ListPagination, PageShell, ResultsHeader } from "@/components/listing";
+import {
+  EventSortSelect,
+  ListPagination,
+  ListToolbar,
+  PageShell,
+  ResultsHeader,
+} from "@/components/listing";
+import type { EventSortValue } from "@/components/listing/event-sort-select";
 import type { Distance } from "@/components/distance-badge";
 import { useDistances } from "@/hooks/use-distances";
 import { mapEventToCard } from "@/lib/normalizers/event";
+import { normalizePlanState } from "@/lib/normalizers/plan";
 import { useListQueryParams } from "@/hooks/use-list-query-params";
 import { Flag, ArrowRight, Calendar, MapPin, Bell } from "lucide-react";
 
@@ -75,10 +76,10 @@ export default function ExplorePage() {
     staleTime: 30 * 1000,
   });
 
-  const planIdByEventId = useMemo(() => {
-    const map = new Map<string, string>();
+  const planByEventId = useMemo(() => {
+    const map = new Map<string, PlanItem>();
     planItems?.forEach((plan) => {
-      map.set(plan.eventId, plan.id);
+      map.set(plan.eventId, plan);
     });
     return map;
   }, [planItems]);
@@ -155,14 +156,6 @@ export default function ExplorePage() {
   const sortParam = getParam("sort", "date_asc");
   const sortValue = sortParam === "date_desc" ? "date_desc" : "date_asc";
 
-  const sortOptions = useMemo(
-    () => [
-      { value: "date_asc", label: t("filters.sort.dateAsc") },
-      { value: "date_desc", label: t("filters.sort.dateDesc") },
-    ],
-    [t]
-  );
-
   const debouncedFilters = useMemo<FilterValues>(() => {
     return {
       city: debouncedSearchParams.get("city") || "",
@@ -208,9 +201,8 @@ export default function ExplorePage() {
   );
 
   const handleSortChange = useCallback(
-    (value: string) => {
-      const nextSort = value === "date_desc" ? "date_desc" : "date_asc";
-      updateParams({ sort: nextSort });
+    (value: EventSortValue) => {
+      updateParams({ sort: value });
     },
     [updateParams]
   );
@@ -354,7 +346,7 @@ export default function ExplorePage() {
 
   const handleRemoveFromPlan = useCallback(
     async (eventId: string) => {
-      const planId = planIdByEventId.get(eventId);
+      const planId = planByEventId.get(eventId)?.id;
       if (!planId) {
         queryClient.invalidateQueries({ queryKey: ["my-plans"] });
         return;
@@ -366,7 +358,7 @@ export default function ExplorePage() {
         setPlanActionPending(eventId, false);
       }
     },
-    [planIdByEventId, queryClient, removePlanItem, setPlanActionPending]
+    [planByEventId, queryClient, removePlanItem, setPlanActionPending]
   );
 
   // Handle pagination
@@ -526,26 +518,10 @@ export default function ExplorePage() {
         </div>
       )}
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <ResultsHeader count={totalCount} className="w-full sm:w-auto" />
-        <div className="flex w-full justify-end sm:w-auto">
-          <Select value={sortValue} onValueChange={handleSortChange}>
-            <SelectTrigger
-              className="h-9 min-w-[160px] max-w-[220px]"
-              aria-label={t("filters.sort.label")}
-            >
-              <SelectValue placeholder={t("filters.sort.label")} />
-            </SelectTrigger>
-            <SelectContent>
-              {sortOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <ListToolbar
+        left={<ResultsHeader count={totalCount} />}
+        right={<EventSortSelect value={sortValue} onChange={handleSortChange} />}
+      />
 
       {eventsLoading ? (
         <EventCardSkeletonList count={6} />
@@ -562,18 +538,26 @@ export default function ExplorePage() {
       ) : (
         <>
           <div className="space-y-4">
-            {eventCards.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                onView={() => router.push(`/events/${event.id}`)}
-                onAddToPlan={() => handleAddToPlan(event.id)}
-                onRemoveFromPlan={() => handleRemoveFromPlan(event.id)}
-                isInPlan={planIdByEventId.has(event.id)}
-                planItemId={planIdByEventId.get(event.id)}
-                isPlanActionLoading={!!pendingPlanActions[event.id]}
-              />
-            ))}
+            {eventCards.map((event) => {
+              const planItem = planByEventId.get(event.id);
+              const planState = planItem
+                ? normalizePlanState(planItem.state)
+                : undefined;
+
+              return (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  onView={() => router.push(`/events/${event.id}`)}
+                  onAddToPlan={() => handleAddToPlan(event.id)}
+                  onRemoveFromPlan={() => handleRemoveFromPlan(event.id)}
+                  isInPlan={!!planItem}
+                  planItemId={planItem?.id}
+                  planState={planState}
+                  isPlanActionLoading={!!pendingPlanActions[event.id]}
+                />
+              );
+            })}
           </div>
 
           <ListPagination

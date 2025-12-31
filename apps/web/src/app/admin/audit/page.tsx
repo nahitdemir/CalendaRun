@@ -6,11 +6,17 @@ import { useAuth } from "@/contexts/auth-context";
 import { useTranslation } from "@/contexts/locale-context";
 import { TenantAdminGuard } from "@/components/route-guards";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api-client";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ListPagination, ListToolbar, PageShell, ResultsHeader } from "@/components/listing";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const ACTIONS = [
   "TenantCreated",
@@ -117,7 +123,7 @@ function AdminAuditContent() {
 
   if (isLoading) {
     return (
-      <div className="container-app space-y-6">
+      <PageShell>
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-16 w-full rounded-2xl" />
         <div className="rounded-2xl border">
@@ -131,81 +137,87 @@ function AdminAuditContent() {
             ))}
           </div>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
+  const hasActiveFilters = Boolean(selectedAction || selectedEntityType);
+
   return (
-    <div className="container-app space-y-6">
+    <PageShell>
       <PageHeader
         title={t("admin.audit.title")}
         subtitle={selectedTenant?.tenantName}
       />
 
-      {/* Filters */}
-      <div className="rounded-2xl border bg-card p-4">
-        <div className="flex flex-wrap gap-4">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm text-muted-foreground mb-1">
-              {locale === "tr" ? "Aksiyon" : "Action"}
-            </label>
-            <select
-              value={selectedAction}
-              onChange={(e) => {
-                setSelectedAction(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full h-10 px-3 bg-background border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">
-                {locale === "tr" ? "Tüm Aksiyonlar" : "All Actions"}
-              </option>
-              {ACTIONS.map((action) => (
-                <option key={action} value={action}>
-                  {action}
-                </option>
-              ))}
-            </select>
-          </div>
+      <ListToolbar
+        left={
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="min-w-[200px]">
+              <label className="mb-1 block text-sm text-muted-foreground">
+                {locale === "tr" ? "Aksiyon" : "Action"}
+              </label>
+              <Select
+                value={selectedAction || "all"}
+                onValueChange={(value) => {
+                  setSelectedAction(value === "all" ? "" : value);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue placeholder={locale === "tr" ? "Tüm Aksiyonlar" : "All Actions"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {locale === "tr" ? "Tüm Aksiyonlar" : "All Actions"}
+                  </SelectItem>
+                  {ACTIONS.map((action) => (
+                    <SelectItem key={action} value={action}>
+                      {action}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm text-muted-foreground mb-1">
-              {locale === "tr" ? "Entity Tipi" : "Entity Type"}
-            </label>
-            <select
-              value={selectedEntityType}
-              onChange={(e) => {
-                setSelectedEntityType(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full h-10 px-3 bg-background border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">
-                {locale === "tr" ? "Tüm Entity'ler" : "All Entities"}
-              </option>
-              {ENTITY_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
+            <div className="min-w-[200px]">
+              <label className="mb-1 block text-sm text-muted-foreground">
+                {locale === "tr" ? "Entity Tipi" : "Entity Type"}
+              </label>
+              <Select
+                value={selectedEntityType || "all"}
+                onValueChange={(value) => {
+                  setSelectedEntityType(value === "all" ? "" : value);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue placeholder={locale === "tr" ? "Tüm Entity'ler" : "All Entities"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {locale === "tr" ? "Tüm Entity'ler" : "All Entities"}
+                  </SelectItem>
+                  {ENTITY_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+        }
+        showClear={hasActiveFilters}
+        clearLabel={t("filters.clear")}
+        onClear={() => {
+          setSelectedAction("");
+          setSelectedEntityType("");
+          setCurrentPage(1);
+        }}
+      />
 
-          <div className="flex items-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSelectedAction("");
-                setSelectedEntityType("");
-                setCurrentPage(1);
-              }}
-            >
-              {t("filters.clear")}
-            </Button>
-          </div>
-        </div>
-      </div>
+      <ResultsHeader count={auditLogs?.totalCount ?? 0} />
 
       {/* Table */}
       <div className="rounded-2xl border bg-card overflow-hidden">
@@ -284,40 +296,16 @@ function AdminAuditContent() {
         </div>
       </div>
 
-      {/* Pagination */}
-      {auditLogs && auditLogs.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            {locale === "tr"
-              ? `Toplam ${auditLogs.totalCount} kayıt (${auditLogs.totalPages} sayfa)`
-              : `Total ${auditLogs.totalCount} records (${auditLogs.totalPages} pages)`}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="flex items-center px-3 text-sm">
-              {currentPage} / {auditLogs.totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setCurrentPage((p) => Math.min(auditLogs.totalPages, p + 1))
-              }
-              disabled={currentPage === auditLogs.totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
+      <ListPagination
+        page={currentPage}
+        pageSize={pageSize}
+        total={auditLogs?.totalCount}
+        onPageChange={(nextPage) => {
+          setCurrentPage(nextPage);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+      />
+    </PageShell>
   );
 }
 

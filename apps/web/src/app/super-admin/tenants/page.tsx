@@ -295,12 +295,19 @@ function TenantsPageContent() {
       />
       <ListToolbar
         left={
-          <Input
-            value={searchFilter}
-            onChange={(e) => updateParams({ search: e.target.value })}
-            placeholder={t("common.search")}
-            className="h-9 w-[220px]"
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              value={searchFilter}
+              onChange={(e) => updateParams({ search: e.target.value })}
+              placeholder={t("common.search")}
+              className="h-9 w-[220px]"
+            />
+            <ResultsHeader
+              count={filteredTenants.length}
+              sortLabel={sortBy !== "createdAt" ? sortLabel : undefined}
+              className="w-auto"
+            />
+          </div>
         }
         right={
           <Select value={sortBy} onValueChange={(value) => updateParams({ sort: value })}>
@@ -323,8 +330,6 @@ function TenantsPageContent() {
         onClearAll={() => clearParams()}
         clearLabel={t("filters.clear")}
       />
-
-      <ResultsHeader count={filteredTenants.length} sortLabel={sortBy !== "createdAt" ? sortLabel : undefined} />
 
       {filteredTenants.length === 0 ? (
         <EmptyState
