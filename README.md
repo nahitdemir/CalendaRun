@@ -450,6 +450,18 @@ pnpm lint         # ESLint check
 
 ---
 
+## 🤝 Contributing
+
+Katki yapmak icin [CONTRIBUTING.md](CONTRIBUTING.md) dosyasina goz atabilirsiniz.
+
+---
+
+## 🔒 Security
+
+Guvenlik aciklarini bildirmek icin [SECURITY.md](SECURITY.md) dosyasini kullanin. Lutfen public issue acmayin.
+
+---
+
 ## 📄 License
 
 MIT
